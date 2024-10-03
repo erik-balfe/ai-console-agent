@@ -1,1 +1,5 @@
-.aider*
+node_modules
+.env
+.aider.input.history
+.aider.tags.cache.v3
+.aider.chat.history.md
