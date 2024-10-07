@@ -9,7 +9,10 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "openai": "^4.0.0",
-    "dotenv": "^16.0.0"
-  }
+    "dotenv": "^16.0.0",
+    "llamaindex": "0.6"
+  },
+  "trustedDependencies": [
+    "protobufjs"
+  ]
 }
