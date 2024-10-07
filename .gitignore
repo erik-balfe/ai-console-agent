@@ -3,3 +3,4 @@ node_modules
 .aider.input.history
 .aider.tags.cache.v3
 .aider.chat.history.md
+.aider*
