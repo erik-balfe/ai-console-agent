@@ -9,7 +9,6 @@ const MAX_INPUT_LENGTH = 4000; // Adjust this based on your needs
 async function main() {
   const { command, input } = parseArguments(process.argv);
 
-  return // just for testing cli part
 
   let finalInput = input;
   if (command === "pipe") {
@@ -18,7 +17,7 @@ async function main() {
   }
 
   if (finalInput) {
-    console.log(`Input: ${finalInput}`);
+    console.log(`final input: ${finalInput}`);
 
     if (finalInput.length > MAX_INPUT_LENGTH) {
       console.error(`Input is too long. Please limit your input to ${MAX_INPUT_LENGTH} characters.`);
@@ -27,7 +26,7 @@ async function main() {
 
     try {
       const agentResponse = await runAgent(finalInput);
-      console.log("Agent Response:", agentResponse);
+      // console.log("Agent Response:", agentResponse);
     } catch (error) {
       console.error("Error running agent:", error);
     }

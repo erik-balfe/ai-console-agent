@@ -1,7 +1,7 @@
-import { safeExecute } from "./safeExecution";
+import { execureCommand } from "./safeExecution";
 
 export async function gatherSystemContext() {
-  const osInfo = await safeExecute("uname -a");
-  const installedPrograms = await safeExecute("which git ffmpeg"); // Add more programs as needed
+  const osInfo = await execureCommand("uname -a");
+  const installedPrograms = await execureCommand("which git ffmpeg"); // Add more programs as needed
   return { osInfo, installedPrograms };
 }

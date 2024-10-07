@@ -50,7 +50,7 @@ export function getUserConfirmation(prompt: string): Promise<boolean> {
   return new Promise((resolve) => {
     rl.question(`${prompt} (y/n) `, (answer) => {
       rl.close();
-      resolve(answer.toLowerCase() === "y");
+      resolve(answer.toLowerCase() === "y" || answer === "");
     });
   });
 }

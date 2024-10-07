@@ -1,20 +1,32 @@
 import { FunctionTool } from "llamaindex";
 import { getUserConfirmation } from "../cli/interface";
-import { safeExecute } from "../utils/safeExecution";
+import { runShellCommand } from "../utils/runShellCommand";
 
 export const executeCommandTool = new FunctionTool(
-  async (params: { command: string }) => {
-    const { command } = params;
+  async (params: { command: string; requireConfirmation: boolean; explanation: string }) => {
+    const { command, requireConfirmation = false, explanation = "No explanation provided" } = params;
     console.log(`Proposed command: ${command}`);
-    const confirmed = await getUserConfirmation("Do you want to execute this command?");
-    if (!confirmed) {
-      return "Command execution cancelled by user.";
+    console.log(`Require confirmation: ${requireConfirmation}`);
+    console.log(`Explanation: ${explanation}`);
+
+    if (requireConfirmation) {
+      console.log(`Requesting user confirmation for command: ${command}`);
+      const accessGranted = await getUserConfirmation("Do you want to execute this command? ");
+      console.log(`User confirmation result: ${accessGranted}`);
+      if (!accessGranted) {
+        console.log("Command execution cancelled by user.");
+        return "Command execution cancelled by user.";
+      }
     }
+
     try {
-      const result = await safeExecute(command);
-      return `Command executed successfully. Output:\n${result}`;
+      console.log(`Executing command: ${command}`);
+      const result = await runShellCommand(command);
+      console.log(`Successfully completed command "${command}". Result: ${JSON.stringify(result)}`);
+      return JSON.stringify(result);
     } catch (error: unknown) {
-      console.error("Error executing command:", error);
+      console.error("Error in tool executing command:", error);
+      console.log(`Command execution failed: ${command}`);
       return `Failed to execute command: ${error instanceof Error ? error.message : String(error)}`;
     }
   },
@@ -27,6 +39,17 @@ export const executeCommandTool = new FunctionTool(
         command: {
           type: "string",
           description: "The command to execute",
+        },
+        requireConfirmation: {
+          type: "boolean",
+          description:
+            "If true, requires explicit user confirmation (y/n) before executing the command. Used for potentially dangerous commands, that change state",
+          default: false,
+        },
+        explanation: {
+          type: "string",
+          description: "Explanation of what the command does, shown to the user before confirmation",
+          default: "No explanation provided",
         },
       },
       required: ["command"],
