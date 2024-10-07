@@ -48,9 +48,9 @@ export function getUserConfirmation(prompt: string): Promise<boolean> {
   });
 
   return new Promise((resolve) => {
-    rl.question(`${prompt} (y/n) `, (answer) => {
+    rl.question(`\x1b[33m${prompt} Press (y/n) and then press enter:\x1b[0m \n`, (answer) => {
       rl.close();
-      resolve(answer.toLowerCase() === "y" || answer === "");
+      resolve(answer.toLowerCase() === "y");
     });
   });
 }

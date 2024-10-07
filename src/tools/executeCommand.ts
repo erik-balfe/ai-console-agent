@@ -11,7 +11,7 @@ export const executeCommandTool = new FunctionTool(
 
     if (requireConfirmation) {
       console.log(`Requesting user confirmation for command: ${command}`);
-      const accessGranted = await getUserConfirmation("Do you want to execute this command? ");
+      const accessGranted = await getUserConfirmation("Do you want to execute this command:\n\n" + command + '\n\n' + explanation);
       console.log(`User confirmation result: ${accessGranted}`);
       if (!accessGranted) {
         console.log("Command execution cancelled by user.");

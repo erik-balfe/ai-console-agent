@@ -28,6 +28,8 @@ AI-console-assistant is a powerful command-line tool that uses artificial intell
 
 ### Installation
 
+// currently does not work as no releases are made.
+
 1. Download the latest `ai` executable from the [releases page](link-to-your-releases-page).
 2. Make the file executable:
    ```sh
@@ -84,6 +86,8 @@ For development, you can use a `.env` file in the project root:
 
 To compile the project into a standalone executable:
 
+// currently does not work
+
 ```sh
 bun build ./src/index.ts --compile --outfile ai
 ```
@@ -99,6 +103,8 @@ bun run src/index.ts [your command here]
 ## Usage
 
 Run the AI assistant from anywhere in your terminal:
+
+// currently does not work as compilation is in WIP and thun can't be called this way
 
 ```sh
 ai [your prompt or question here]
