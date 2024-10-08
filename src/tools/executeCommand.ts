@@ -1,7 +1,6 @@
 import { FunctionTool } from "llamaindex";
 import { getUserConfirmation } from "../cli/interface";
 import { runShellCommand } from "../utils/runShellCommand";
-import { ExpectWrapper } from "./ExpectWrapper";
 import { TmuxWrapper } from "./TmuxWrapper";
 
 export const executeCommandTool = new FunctionTool(
@@ -30,21 +29,17 @@ export const executeCommandTool = new FunctionTool(
     }
 
     try {
-      console.log(`Executing command: ${command}`);
+      console.log(`### Executing command: ${command}`);
       let result: string;
 
-      if (interactions.length > 0) {
-        if (useTmux) {
-          result = await TmuxWrapper.run(command, interactions);
-        } else {
-          result = await ExpectWrapper.run(command, interactions);
-        }
+      if (useTmux) {
+        result = await TmuxWrapper.run(command, interactions);
       } else {
         const { stdout, stderr } = await runShellCommand(command);
         result = stdout + (stderr ? `\nError: ${stderr}` : "");
       }
 
-      console.log(`Successfully completed command "${command}". Result: ${JSON.stringify(result)}`);
+      console.log(`### Successfully completed command "${command}". Result: ${JSON.stringify(result)}`);
       return result;
     } catch (error: unknown) {
       console.error("Error in tool executing command:", error);
@@ -54,7 +49,7 @@ export const executeCommandTool = new FunctionTool(
   {
     name: "executeCommand",
     description:
-      "Execute a command on the user's system and return the output. Can handle interactive commands using expect or tmux.",
+      "Execute a command on the user's system and return the output. Can handle commands requiring simple interactions.",
     parameters: {
       type: "object",
       properties: {
@@ -80,7 +75,7 @@ export const executeCommandTool = new FunctionTool(
         },
         useTmux: {
           type: "boolean",
-          description: "If true, uses tmux for command execution instead of expect",
+          description: "If true, uses tmux for command execution, allowing for simple interactions",
           default: false,
         },
       },

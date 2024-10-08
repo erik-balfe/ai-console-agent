@@ -4,34 +4,67 @@ import { promisify } from "util";
 const execAsync = promisify(exec);
 
 export class TmuxWrapper {
+  private static currentSession: string | null = null;
+
+  static async initializeSession(): Promise<void> {
+    if (!this.currentSession) {
+      this.currentSession = `ai-agent-${Date.now()}`;
+      await this.createSession(this.currentSession);
+    }
+  }
+
   static async run(command: string, interactions: string[]): Promise<string> {
-    const sessionName = `ai-agent-${Date.now()}`;
-    await this.createSession(sessionName, command);
+    if (!this.currentSession) {
+      throw new Error("Tmux session not initialized");
+    }
+
+    await this.sendCommand(this.currentSession, command);
 
     for (const interaction of interactions) {
-      const [, send] = interaction.split("|");
+      const [expect, send] = interaction.split("|");
       if (send) {
-        await this.sendKeys(sessionName, send);
+        await this.waitForOutput(this.currentSession, expect);
+        await this.sendKeys(this.currentSession, send);
       } else {
-        // If there's no '|', it means we just need to wait
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for 500ms
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
 
-    const output = await this.captureOutput(sessionName);
-    await this.killSession(sessionName);
-
-    return output;
+    return this.captureOutput(this.currentSession);
   }
 
-  private static async createSession(sessionName: string, command: string): Promise<void> {
-    await execAsync(`tmux new-session -d -s ${sessionName} "${command}"`);
+  static async cleanup(): Promise<void> {
+    if (this.currentSession) {
+      await this.killSession(this.currentSession);
+      this.currentSession = null;
+    }
+  }
+
+  private static async createSession(sessionName: string): Promise<void> {
+    await execAsync(`tmux new-session -d -s ${sessionName}`);
+  }
+
+  private static async sendCommand(sessionName: string, command: string): Promise<void> {
+    await this.sendKeys(sessionName, command);
   }
 
   private static async sendKeys(sessionName: string, keys: string): Promise<void> {
     const escapedKeys = keys.replace(/"/g, '\\"');
     await execAsync(`tmux send-keys -t ${sessionName} "${escapedKeys}"`);
     await execAsync(`tmux send-keys -t ${sessionName} "Enter"`);
+  }
+
+  private static async waitForOutput(sessionName: string, expect: string): Promise<void> {
+    let retries = 10;
+    while (retries > 0) {
+      const output = await this.captureOutput(sessionName);
+      if (output.includes(expect)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      retries--;
+    }
+    throw new Error(`Timed out waiting for output: ${expect}`);
   }
 
   private static async captureOutput(sessionName: string): Promise<string> {

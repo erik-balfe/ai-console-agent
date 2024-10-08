@@ -2,12 +2,12 @@ import { stdin } from "process";
 import readline from "readline";
 
 export function parseArguments(args: string[]): { command: string | null; input: string } {
-  console.log("Parsing arguments:", args);
+  console.log("### Parsing arguments:", args);
 
   const [, , ...cliArgs] = args;
   const joined = cliArgs.join(" ");
 
-  console.log("Joined CLI arguments:", joined);
+  console.log("### Joined CLI arguments:", joined);
 
   if (joined.includes("|")) {
     const [command, ...rest] = joined.split("|");
@@ -15,14 +15,14 @@ export function parseArguments(args: string[]): { command: string | null; input:
       command: command.trim(),
       input: rest.join("|").trim(),
     };
-    console.log("Parsed piped command:", result);
+    console.log("### Parsed piped command:", result);
     return result;
   } else {
     const result = {
       command: null,
       input: joined.trim(),
     };
-    console.log("Parsed direct input:", result);
+    console.log("### Parsed direct input:", result);
     return result;
   }
 }
@@ -41,6 +41,9 @@ export async function getPipedInput(): Promise<string> {
   });
 }
 
+// todo: change to be more user friendly, like a select with 2 lines where Yes is first
+//  and focused by default, and no in second option.
+//  And user would select option by using arrow buttons and enter.
 export function getUserConfirmation(prompt: string): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
