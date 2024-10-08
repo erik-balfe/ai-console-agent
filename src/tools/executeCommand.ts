@@ -1,38 +1,60 @@
 import { FunctionTool } from "llamaindex";
 import { getUserConfirmation } from "../cli/interface";
 import { runShellCommand } from "../utils/runShellCommand";
+import { ExpectWrapper } from "./ExpectWrapper";
+import { TmuxWrapper } from "./TmuxWrapper";
 
 export const executeCommandTool = new FunctionTool(
-  async (params: { command: string; requireConfirmation: boolean; explanation: string }) => {
-    const { command, requireConfirmation = false, explanation = "No explanation provided" } = params;
-    console.log(`Proposed command: ${command}`);
-    console.log(`Require confirmation: ${requireConfirmation}`);
-    console.log(`Explanation: ${explanation}`);
+  async (params: {
+    command: string;
+    requireConfirmation: boolean;
+    explanation: string;
+    interactions: string[];
+    useTmux: boolean;
+  }) => {
+    const {
+      command,
+      requireConfirmation = false,
+      explanation = "No explanation provided",
+      interactions = [],
+      useTmux = false,
+    } = params;
 
     if (requireConfirmation) {
-      console.log(`Requesting user confirmation for command: ${command}`);
-      const accessGranted = await getUserConfirmation("Do you want to execute this command:\n\n" + command + '\n\n' + explanation);
-      console.log(`User confirmation result: ${accessGranted}`);
+      const accessGranted = await getUserConfirmation(
+        `Do you want to execute this command:\n\n${command}\n\n${explanation}`,
+      );
       if (!accessGranted) {
-        console.log("Command execution cancelled by user.");
         return "Command execution cancelled by user.";
       }
     }
 
     try {
       console.log(`Executing command: ${command}`);
-      const result = await runShellCommand(command);
+      let result: string;
+
+      if (interactions.length > 0) {
+        if (useTmux) {
+          result = await TmuxWrapper.run(command, interactions);
+        } else {
+          result = await ExpectWrapper.run(command, interactions);
+        }
+      } else {
+        const { stdout, stderr } = await runShellCommand(command);
+        result = stdout + (stderr ? `\nError: ${stderr}` : "");
+      }
+
       console.log(`Successfully completed command "${command}". Result: ${JSON.stringify(result)}`);
-      return JSON.stringify(result);
+      return result;
     } catch (error: unknown) {
       console.error("Error in tool executing command:", error);
-      console.log(`Command execution failed: ${command}`);
       return `Failed to execute command: ${error instanceof Error ? error.message : String(error)}`;
     }
   },
   {
     name: "executeCommand",
-    description: "Execute a command on the user's system and return the output",
+    description:
+      "Execute a command on the user's system and return the output. Can handle interactive commands using expect or tmux.",
     parameters: {
       type: "object",
       properties: {
@@ -42,14 +64,24 @@ export const executeCommandTool = new FunctionTool(
         },
         requireConfirmation: {
           type: "boolean",
-          description:
-            "If true, requires explicit user confirmation (y/n) before executing the command. Used for potentially dangerous commands, that change state",
+          description: "If true, requires explicit user confirmation before executing the command.",
           default: false,
         },
         explanation: {
           type: "string",
           description: "Explanation of what the command does, shown to the user before confirmation",
           default: "No explanation provided",
+        },
+        interactions: {
+          type: "array",
+          items: { type: "string" },
+          description: "List of expected prompts and responses for interactive commands",
+          default: [],
+        },
+        useTmux: {
+          type: "boolean",
+          description: "If true, uses tmux for command execution instead of expect",
+          default: false,
         },
       },
       required: ["command"],

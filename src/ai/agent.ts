@@ -78,6 +78,46 @@ export async function runAgent(input: string) {
   - For potentially risky commands, always set requireConfirmation to true.
   - Use requireConfirmation liberally if you're unsure about the safety or impact of a command.
 
+  When dealing with interactive commands:
+  1. Identify the expected prompts and responses.
+  2. Use the executeCommand tool with the 'interactions' parameter.
+  3. Format each interaction as "expected prompt|response".
+  4. For multi-line inputs, use "\\n" to separate lines.
+  5. For complex terminal-based applications, set useTmux to true.
+
+  Example for Git rebase to squash last 4 commits:
+  <example>
+  executeCommand({
+    command: "git rebase -i HEAD~4",
+    interactions: [
+      "# Rebase|pick \${FIRST_COMMIT_HASH}\\nsquash \${SECOND_COMMIT_HASH}\\nsquash \${THIRD_COMMIT_HASH}\\nsquash \${FOURTH_COMMIT_HASH}\\n\\n",
+      "# Rebase complete.|feat: combined feature with subcomponents\\n\\nThis commit combines the following changes:\\n- \${FIRST_COMMIT_MESSAGE}\\n- \${SECOND_COMMIT_MESSAGE}\\n- \${THIRD_COMMIT_MESSAGE}\\n- \${FOURTH_COMMIT_MESSAGE}\\n\\n"
+    ],
+    requireConfirmation: true,
+    explanation: "This will squash the last 4 commits into one, combining their messages."
+  })
+  </example>
+
+  Example for using a full-screen TUI application like nano:
+  <example>
+  executeCommand({
+    command: "nano testfile.txt",
+    interactions: [
+      "|hello", // Type 'hello'
+      "|^O", // Press Ctrl+O to save
+      "|", // Wait for the filename prompt
+      "|Enter", // Confirm the filename
+      "|^X" // Press Ctrl+X to exit
+    ],
+    useTmux: true,
+    explanation: "This will open nano, type 'hello', save the file, and exit."
+  })
+  </example>
+
+  Do not suggest anything to run for the user. If you decide to run a command on user system, use the executeCommand tool. If you want to make the user decide, use it with requireConfirmation option.
+
+  Always strive to automate fully, minimizing the need for user intervention. If a task seems impossible to automate, explain why and suggest alternative approaches.
+
   Remember: The safety and integrity of the user's system is the highest priority. Never execute commands that could potentially harm the system or data without explicit user confirmation.
 
   Text response guidelines:
@@ -108,7 +148,7 @@ export async function runAgent(input: string) {
   for await (const stepOutput of task) {
     try {
       const parsedResponse = parseAgentResponse(stepOutput);
-      console.log("parsedResponse:", parsedResponse);
+      // console.log("parsedResponse:", parsedResponse);
       responseContent = parsedResponse.content;
       totalUsage.inputTokens += parsedResponse.usage.input_tokens || parsedResponse.usage.prompt_tokens;
       totalUsage.outputTokens += parsedResponse.usage.output_tokens || parsedResponse.usage.completion_tokens;
