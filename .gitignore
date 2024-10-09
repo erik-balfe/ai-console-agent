@@ -5,3 +5,4 @@ node_modules
 .aider.chat.history.md
 .aider*
 temp
+dist/
