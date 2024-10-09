@@ -1,31 +1,22 @@
 import { stdin } from "process";
 import readline from "readline";
 
-export function parseArguments(args: string[]): { command: string | null; input: string } {
+export function parseArguments(args: string[]): { input: string } {
   console.log("### Parsing arguments:", args);
 
-  const [, , ...cliArgs] = args;
-  const joined = cliArgs.join(" ");
+  // Skip the first two arguments (node executable and script path)
+  const userInput = args.slice(2).join(" ");
 
-  console.log("### Joined CLI arguments:", joined);
+  console.log("### User input:", userInput);
 
-  if (joined.includes("|")) {
-    const [command, ...rest] = joined.split("|");
-    const result = {
-      command: command.trim(),
-      input: rest.join("|").trim(),
-    };
-    console.log("### Parsed piped command:", result);
-    return result;
-  } else {
-    const result = {
-      command: null,
-      input: joined.trim(),
-    };
-    console.log("### Parsed direct input:", result);
-    return result;
-  }
+  const result = {
+    input: userInput,
+  };
+
+  console.log("### Parsed input:", result);
+  return result;
 }
+
 export async function getPipedInput(): Promise<string> {
   return new Promise((resolve) => {
     let data = "";

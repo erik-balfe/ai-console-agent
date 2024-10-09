@@ -1,5 +1,7 @@
+import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
 import { getUserConfirmation } from "../cli/interface";
+import { getCurrentRunId } from "../utils/runManager";
 import { runShellCommand } from "../utils/runShellCommand";
 import { TmuxWrapper } from "./TmuxWrapper";
 
@@ -19,9 +21,14 @@ export const executeCommandTool = new FunctionTool(
       useTmux = false,
     } = params;
 
+    const runId = getCurrentRunId();
+    if (!runId) {
+      throw new Error("No active run ID found");
+    }
+
     if (requireConfirmation) {
       const accessGranted = await getUserConfirmation(
-        `Do you want to execute this command:\n\n${command}\n\n${explanation}`,
+        `Do you want to execute this command:\n\n${chalk.blue(command)}\n\n${explanation}`,
       );
       if (!accessGranted) {
         return "Command execution cancelled by user.";
@@ -29,7 +36,7 @@ export const executeCommandTool = new FunctionTool(
     }
 
     try {
-      console.log(`### Executing command: ${command}`);
+      console.log(chalk.blue(`Executing command: ${command}`));
       let result: string;
 
       if (useTmux) {
@@ -39,10 +46,12 @@ export const executeCommandTool = new FunctionTool(
         result = stdout + (stderr ? `\nError: ${stderr}` : "");
       }
 
-      console.log(`### Successfully completed command "${command}". Result: ${JSON.stringify(result)}`);
+      console.log(
+        chalk.green(`Successfully completed command "${command}"`) + chalk.gray(`\nResult: "${result}"`),
+      );
       return result;
     } catch (error: unknown) {
-      console.error("Error in tool executing command:", error);
+      console.error(chalk.red("Error in tool executing command:"), error);
       return `Failed to execute command: ${error instanceof Error ? error.message : String(error)}`;
     }
   },

@@ -9,6 +9,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "chalk": "^5.3.0",
     "dotenv": "^16.0.0",
     "llamaindex": "0.6"
   },

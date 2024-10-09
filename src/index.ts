@@ -1,36 +1,36 @@
+import chalk from "chalk";
 import { config } from "dotenv";
 import { runAgent } from "./ai/agent";
-import { getPipedInput, parseArguments } from "./cli/interface";
+import { parseArguments } from "./cli/interface";
+import { MAX_INPUT_LENGTH } from "./constants";
 
 config();
 
-const MAX_INPUT_LENGTH = 4000; // Adjust this based on your needs
-
 async function main() {
-  const { command, input } = parseArguments(process.argv);
+  const { input } = parseArguments(process.argv);
 
-  let finalInput = input;
-  if (command === "pipe") {
-    const pipedInput = await getPipedInput();
-    finalInput = `${input} ${pipedInput}`.trim();
-  }
+  if (input) {
+    console.log(chalk.cyan(`Input: ${input}`));
 
-  if (finalInput) {
-    console.log(`final input: ${finalInput}`);
-
-    if (finalInput.length > MAX_INPUT_LENGTH) {
-      console.error(`Input is too long. Please limit your input to ${MAX_INPUT_LENGTH} characters.`);
+    if (input.length > MAX_INPUT_LENGTH) {
+      console.error(
+        chalk.red(`Input is too long. Please limit your input to ${MAX_INPUT_LENGTH} characters.`),
+      );
       return;
     }
 
     try {
-      const agentResponse = await runAgent(finalInput);
-      console.warn("\n\nFinal response:\n------------------\n\n", agentResponse, "\n\n------------------\n");
+      const agentResponse = await runAgent(input);
+      console.log(
+        chalk.green("\n\nFinal response:\n------------------\n\n"),
+        agentResponse,
+        "\n\n------------------\n",
+      );
     } catch (error) {
-      console.error("Error running agent:", error);
+      console.error(chalk.red("Error running agent:"), error);
     }
   } else {
-    console.log("No input received. Please provide input for the agent.");
+    console.log(chalk.yellow("No input received. Please provide input for the agent."));
   }
 }
 
