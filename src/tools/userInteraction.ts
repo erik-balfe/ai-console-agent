@@ -10,19 +10,20 @@ export const userInteractionTool = new FunctionTool(
     if (binary) {
       choices = ["Yes", "No"];
     }
-    choices.push("Cancel the current task");
+    choices.push("Abort the current task");
 
     const selectedIndex = await displayOptions(question, choices);
 
     if (selectedIndex === choices.length - 1) {
-      throw new Error("Task cancelled by user");
+      console.log(chalk.red("Task aborted by user."));
+      process.exit(0); // This will stop the program immediately
     }
 
     return choices[selectedIndex];
   },
   {
     name: "userInteraction",
-    description: "Interact with the user to get input or confirmation",
+    description: "Interact with the user to get input, confirmation, or clarification on ambiguous points",
     parameters: {
       type: "object",
       properties: {
@@ -33,7 +34,7 @@ export const userInteractionTool = new FunctionTool(
         options: {
           type: "array",
           items: { type: "string" },
-          description: "List of options for the user to choose from (max 30 words each)",
+          description: "List of options for the user to choose from (max 30 words each).",
         },
         binary: {
           type: "boolean",
@@ -54,6 +55,7 @@ function displayOptions(question: string, options: string[]): Promise<number> {
 
     let selectedIndex = 0;
     let lineCount = 0;
+    let isFirstRender = true;
 
     function clearPreviousOutput() {
       if (lineCount > 0) {
@@ -63,7 +65,9 @@ function displayOptions(question: string, options: string[]): Promise<number> {
     }
 
     function renderOptions() {
-      clearPreviousOutput();
+      if (!isFirstRender) {
+        clearPreviousOutput();
+      }
       console.log(chalk.yellow(question));
       options.forEach((option, index) => {
         if (index === selectedIndex) {
@@ -73,6 +77,7 @@ function displayOptions(question: string, options: string[]): Promise<number> {
         }
       });
       lineCount = options.length + 1; // +1 for the question
+      isFirstRender = false;
     }
 
     renderOptions();

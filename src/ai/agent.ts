@@ -41,9 +41,21 @@ export async function runAgent(input: string) {
           7. Working Directory Awareness: Operate in the user's current working directory for all main operations. Use the scratch space only for your internal processes.
           8. Home Directory Caution: If the current directory is the home directory, seek user confirmation before performing operations that might affect personal files.
 
+          User Interaction Guidelines:
+          - Use the userInteraction tool to ask for clarification or additional information when needed.
+          - This tool should be used as part of the information gathering stage to better understand and work on the actual task.
+          - The tool allows you to present multiple-choice questions to the user.
+          - Always provide clear, concise options (maximum 30 words each).
+          - Be aware that the user can choose to abort the task at any point during interaction.
+          - Use this tool for:
+            1. Confirming potentially risky operations
+            2. Clarifying ambiguous instructions
+            3. Choosing between multiple possible approaches to a task
+            4. Gathering additional context not available through command-line operations
+
           Task Approach:
           1. Assess task clarity (1-10 scale):
-             - If clarity < 7, gather more information using non-modifying commands.
+             - If clarity < 7, gather more information using non-modifying commands and the userInteraction tool if necessary.
           2. Break down the task into steps.
           3. For each step:
              a. Plan the command or series of commands to execute.
@@ -59,10 +71,18 @@ export async function runAgent(input: string) {
           - If a task seems impossible or too risky, explain why and suggest safer alternatives.
           - All messages you generate are for internal use only. Only the final result should be presented to the user.
 
+          Final Response Instructions:
+          - Your very last message MUST contain a final result wrapped in <final_result> tags.
+          - Only the content within these tags will be returned to the user.
+          - No other text in your messages will be shown to the user directly.
+          - Ensure that your final result is comprehensive and standalone, as it's the only output the user will see.
+
           Final Response Format:
           <final_result>
-          [Provide only the direct answer to the user's question or a concise report of the task result. Do not include any internal notes, thought processes, or step-by-step descriptions here.]
+          [Provide only the direct answer to the user's question or a concise report of the task result. Include all necessary information here, as this is the only content the user will see. Do not include any internal notes, thought processes, or step-by-step descriptions.]
           </final_result>
+
+          If you don't include a <final_result> in your last message, the user will receive no output.
 `.trim(),
       },
     ];
@@ -105,6 +125,11 @@ export async function runAgent(input: string) {
     const finalResultMatch = responseContent.match(/<final_result>([\s\S]*?)<\/final_result>/i);
     if (finalResultMatch) {
       return finalResultMatch[1].trim();
+    } else {
+      console.warn(
+        chalk.yellow("Warning: No final result provided by the agent. Returning the last response."),
+      );
+      return "The agent did not provide a final result. Here's the last response: " + responseContent;
     }
   } finally {
     await TmuxWrapper.cleanup();

@@ -1,129 +1,95 @@
-# AI-console-assistant
+# AI Console Agent
 
-AI-console-assistant is a powerful command-line tool that uses artificial intelligence to interpret and execute complex commands in natural language.
-
-## Features
-
-- Natural language processing for command interpretation
-- Supports a wide range of system commands, translating natural language into executable commands
-- Safe execution with user confirmation before running any system commands
-- Extensible architecture for adding new capabilities and command support
+AI Console Agent is an advanced command-line tool that uses artificial intelligence to interpret and execute complex commands in natural language. It acts as a skilled Linux system administrator and DevOps expert, capable of performing a wide range of tasks through command-line operations.
 
 ## Table of Contents
 
-- [Quick Start (For Users)](#quick-start-for-users)
-- [Developer Guide](#developer-guide)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
 - [Usage](#usage)
-- [Troubleshooting](#troubleshooting)
+- [Safety and Limitations](#safety-and-limitations)
+- [Development Status](#development-status)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
 - [Version](#version)
 
-## Quick Start (For Users)
+## Features
 
-### Prerequisites
+- Natural language processing for command interpretation
+- Execution of system commands based on user input
+- Intelligent file handling with automatic backups
+- Non-interactive operation for most tasks
+- User interaction for clarifications and confirmations
+- Cautious command execution with step-by-step verification
+- Use of a dedicated workspace for intermediate results
+- Proactive information gathering about the system state
+- Home directory caution for potentially risky operations
+- Colorized console output for better readability
 
-- A Unix-like operating system (Linux, macOS)
-
-### Installation
-
-// currently does not work as no releases are made.
-
-1. Download the latest `ai` executable from the [releases page](link-to-your-releases-page).
-2. Make the file executable:
-   ```sh
-   chmod +x ai
-   ```
-3. Move the executable to a directory in your PATH:
-   ```sh
-   sudo mv ai /usr/local/bin/
-   ```
-
-### Configuration
-
-Set your OpenAI API key as an environment variable:
-
-```sh
-export OPENAI_API_KEY=your_api_key_here
-```
-
-To make this permanent, add the above line to your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`, etc.).
-
-## Developer Guide
-
-### Prerequisites
+## Prerequisites
 
 - Bun (latest version)
 - Node.js (v14 or later)
 - Git
 
-### Installation
+## Installation
 
 1. Clone the repository:
 
-   ```sh
+   ```
    git clone https://github.com/yourusername/ai-console-agent.git
    cd ai-console-agent
    ```
 
 2. Install dependencies:
-   ```sh
+
+   ```
    bun install
    ```
 
-### Configuration
-
-For development, you can use a `.env` file in the project root:
-
-1. Create a `.env` file in the project root directory
-2. Add your OpenAI API key:
+3. Set up your OpenAI API key:
+   Create a `.env` file in the project root and add your API key:
    ```
    OPENAI_API_KEY=your_api_key_here
    ```
 
-### Compilation
-
-To compile the project into a standalone executable:
-
-// currently does not work
-
-```sh
-bun build ./src/index.ts --compile --outfile ai
-```
-
-### Development
-
-For development and debugging, run the project directly with Bun:
-
-```sh
-bun run src/index.ts [your command here]
-```
-
 ## Usage
 
-Run the AI assistant from anywhere in your terminal:
+To run the AI Console Agent:
 
-// currently does not work as compilation is in WIP and thun can't be called this way
-
-```sh
-ai [your prompt or question here]
+```
+bun run src/index.ts "Your natural language command or question here"
 ```
 
-For example:
+Example:
 
-```sh
-ai show all running docker containers
+```
+bun run src/index.ts "Show me the disk usage of the current directory"
 ```
 
-## Troubleshooting
+The agent will interpret your request, execute the necessary commands, and provide you with the results.
 
-- If you encounter permission issues when running the executable, try:
-  ```sh
-  chmod +x ai
-  ```
-- Ensure your OpenAI API key is properly set as an environment variable in your system.
-- For developers: If using a `.env` file, make sure it's in the correct location and formatted properly.
+## Safety and Limitations
+
+- The agent creates backups before modifying important files.
+- It uses a dedicated workspace for intermediate results to avoid cluttering your system.
+- The agent will ask for confirmation before performing potentially risky operations.
+- It cannot perform actions that require interactive program usage (like text editors).
+- While designed to be safe, use caution when giving it access to sensitive systems or data.
+
+## Development Status
+
+AI Console Agent is in early development. While functional, it may have bugs or limitations. Use it at your own risk and always verify important operations.
+
+Upcoming features:
+
+- Continuation of previous sessions and access to previous task context
+- Compilation into a single, easy-to-distribute binary
+- Enhanced learning and adaptation capabilities
+- More advanced context-aware processing
+- Comprehensive error handling and recovery system
 
 ## Contributing
 
@@ -131,7 +97,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
@@ -139,5 +105,4 @@ If you encounter any problems or have any questions, please open an issue on the
 
 ## Version
 
-Current version: 0.1.0.
-It is in early development and currently might not work as expected.
+Current version: 0.1.0
