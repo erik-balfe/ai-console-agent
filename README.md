@@ -29,13 +29,67 @@ AI Console Agent is an advanced command-line tool that uses artificial intellige
 - Home directory caution for potentially risky operations
 - Colorized console output for better readability
 
-## Prerequisites
-
-- Bun (latest version)
-- Node.js (v14 or later)
-- Git
-
 ## Installation
+
+
+### Quick Install (Recommended)
+
+You can install AI Console Agent with a single command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/erik-balfe/ai-console-agent/master/install.sh | bash
+```
+
+This command will:
+- Download the latest AI Console Agent binary
+- Make it executable
+- Install it in a directory in your PATH
+- Set up your OpenAI API key
+
+After installation, restart your terminal or run `source ~/.bashrc` (or `~/.zshrc` for Zsh users), then you can use AI Console Agent from anywhere:
+
+```bash
+ai-console-agent "Your natural language command or question here"
+```
+
+
+### Manual Installation
+
+If you prefer to install manually:
+
+1. Download the latest release:
+   ```
+   curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
+   ```
+
+2. Make the file executable:
+   ```
+   chmod +x ai-console-agent
+   ```
+
+3. Move the file to a directory in your PATH:
+   ```
+   sudo mv ai-console-agent /usr/local/bin/
+   ```
+
+4. Set up your OpenAI API key:
+   ```
+   echo "export OPENAI_API_KEY=your_api_key_here" >> ~/.bashrc
+   source ~/.bashrc
+   ```
+
+5. Run AI Console Agent:
+   ```
+   ai-console-agent "Your natural language command or question here"
+   ```
+
+   Example:
+   ```
+   ai-console-agent "Show me the disk usage of the current directory"
+   ```
+
+
+
 
 1. Clone the repository:
 
@@ -72,16 +126,25 @@ bun run src/index.ts "Show me the disk usage of the current directory"
 
 The agent will interpret your request, execute the necessary commands, and provide you with the results.
 
-## Compilation and Distribution
+## Development
+
 
 ### Prerequisites
 
-This project requires Bun version 1.1.30 or later. To install Bun, follow the instructions at https://bun.sh/.
+- Bun. To install Bun, follow the instructions at https://bun.sh/.
+- Git
+
+
+### Compilation and Distribution
+
+### Prerequisites
 
 
 ### Compilation Process
 
 To compile the AI Console Agent into a standalone executable with source maps, follow these steps:
+This project requires Bun version 1.1.30. Compilation with lower versions may have some problems.
+
 
 1. Ensure all project dependencies are installed:
 

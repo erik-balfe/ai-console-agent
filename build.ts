@@ -17,7 +17,12 @@ async function build() {
   }
 
   console.log("Installing dependencies...");
-  spawnSync("bun", ["install"], { stdio: "inherit" });
+  const installResult = spawnSync("bun", ["install", "--frozen-lockfile"], { stdio: "inherit" });
+
+  if (installResult.status !== 0) {
+    console.error("Failed to install dependencies");
+    process.exit(1);
+  }
 
   console.log("Compiling project...");
   const result = spawnSync(
