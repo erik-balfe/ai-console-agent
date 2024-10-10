@@ -42,12 +42,17 @@ export const executeCommandTool = new FunctionTool(
       if (useTmux) {
         result = await TmuxWrapper.run(command, interactions);
       } else {
-        const { stdout, stderr } = await runShellCommand(command);
-        result = stdout + (stderr ? `\nError: ${stderr}` : "");
+        try {
+          const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
+          result = JSON.stringify({ stdout, stderr });
+        } catch (error) {
+          console.error(chalk.red("Error in tool executing command:"), error);
+          return { stderr: error instanceof Error ? error.message : String(error) };
+        }
       }
 
       console.log(
-        chalk.green(`Successfully completed command "${command}"`) + chalk.gray(`\nResult: "${result}"`),
+        chalk.green(`Successfully completed command "${command}"`) + chalk.gray(`\nResult:\n"${result}"`),
       );
       return result;
     } catch (error: unknown) {

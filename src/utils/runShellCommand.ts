@@ -9,11 +9,14 @@ export async function runShellCommand(
 ): Promise<{ stdout: string; stderr: string }> {
   try {
     const { stdout, stderr } = await execAsync(command, options);
-    return { stdout, stderr };
+    return {
+      stdout: stdout.toString(),
+      stderr: stderr.toString(),
+    };
   } catch (error: any) {
-    console.error(`Error executing command: ${command}`, error);
-    throw new Error(
-      `Failed to execute command safely: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return {
+      stderr: error instanceof Error ? error.message : String(error),
+      stdout: "",
+    };
   }
 }

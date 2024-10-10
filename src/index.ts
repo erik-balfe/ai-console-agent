@@ -7,7 +7,7 @@ import { MAX_INPUT_LENGTH } from "./constants";
 config();
 
 async function main() {
-  const { input } = parseArguments(process.argv);
+  const { input } = parseArguments(Bun.argv);
 
   if (input) {
     console.log(chalk.cyan(`Input: ${input}`));
