@@ -2,12 +2,14 @@ import chalk from "chalk";
 import { config } from "dotenv";
 import { runAgent } from "./ai/agent";
 import { parseArguments } from "./cli/interface";
-import { MAX_INPUT_LENGTH } from "./constants";
+import { MAX_INPUT_LENGTH, OPENAI_API_KEY } from "./constants";
 
 config();
 
 async function main() {
   const { input } = parseArguments(Bun.argv);
+
+  checkAPIKey();
 
   if (input) {
     console.log(chalk.cyan(`Input: ${input}`));
@@ -35,3 +37,12 @@ async function main() {
 }
 
 main().catch(console.error);
+
+function checkAPIKey() {
+  if (OPENAI_API_KEY?.length === 0) throw new Error("OPENAI_API_KEY is not set");
+  else {
+    // maybe test the API key by simple request to openai for available models
+    //  to test if the key is valid
+    return true;
+  }
+}

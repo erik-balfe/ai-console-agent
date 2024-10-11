@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import type { ChatMessage } from "llamaindex";
 import { OpenAI, OpenAIAgent } from "llamaindex";
+import { LLM_ID, OPENAI_API_KEY } from "../constants";
 import { executeCommandTool } from "../tools/executeCommand";
 import { TmuxWrapper } from "../tools/TmuxWrapper";
 import { userInteractionTool } from "../tools/userInteraction";
@@ -8,8 +9,8 @@ import { getCircularReplacer } from "../utils/getCircularReplacer";
 import { parseAgentResponse } from "../utils/parseAgentResponse";
 import { initializeRun } from "../utils/runManager";
 
-const apiKey = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
-const llm = new OpenAI({ apiKey, model: "gpt-4o-mini" });
+
+const llm = new OpenAI({ apiKey: OPENAI_API_KEY, model: LLM_ID });
 
 export async function runAgent(input: string) {
   const runDir = initializeRun(input);

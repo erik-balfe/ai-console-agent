@@ -38,6 +38,7 @@ async function build() {
       MAIN_FILE,
       "--compile",
       "--minify",
+      "--sourcemap",
       "--outfile",
       INTERNAL_OUTPUT_FILE,
       "--target",
