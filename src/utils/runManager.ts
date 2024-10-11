@@ -19,11 +19,15 @@ export function initializeRun(taskDescription: string): string {
   const descriptiveName = generateDescriptiveName(taskDescription);
   const runDir = path.join(AI_CONSOLE_AGENT_DIR, `${descriptiveName}_${runId}`);
 
+  // Ensure the AI_CONSOLE_AGENT_DIR exists
   if (!fs.existsSync(AI_CONSOLE_AGENT_DIR)) {
     fs.mkdirSync(AI_CONSOLE_AGENT_DIR, { recursive: true });
   }
 
+  // Create the run-specific directory
   fs.mkdirSync(runDir, { recursive: true });
+
+  // Write the current run ID to the file
   fs.writeFileSync(RUN_ID_FILE, runId);
 
   return runDir;

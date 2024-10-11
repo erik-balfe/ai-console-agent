@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
-import { getUserConfirmation } from "../cli/interface";
+import { displayOptionsAndGetInput } from "../cli/interface";
 import { getCurrentRunId } from "../utils/runManager";
 import { runShellCommand } from "../utils/runShellCommand";
 import { TmuxWrapper } from "./TmuxWrapper";
@@ -27,10 +27,9 @@ export const executeCommandTool = new FunctionTool(
     }
 
     if (requireConfirmation) {
-      const accessGranted = await getUserConfirmation(
-        `Do you want to execute this command:\n\n${chalk.blue(command)}\n\n${explanation}`,
-      );
-      if (!accessGranted) {
+      const confirmationQuestion = `\n\nDo you want to execute this command:\n\n${chalk.blue(command)}\n\n${explanation}`;
+      const userChoice = await displayOptionsAndGetInput(confirmationQuestion, ["Yes", "No"]);
+      if (userChoice === "No") {
         return "Command execution cancelled by user.";
       }
     }
