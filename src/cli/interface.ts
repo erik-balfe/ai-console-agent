@@ -32,9 +32,6 @@ export async function getPipedInput(): Promise<string> {
   });
 }
 
-// todo: change to be more user friendly, like a select with 2 lines where Yes is first
-//  and focused by default, and no in second option.
-//  And user would select option by using arrow buttons and enter.
 export function getUserConfirmation(prompt: string): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -42,7 +39,7 @@ export function getUserConfirmation(prompt: string): Promise<boolean> {
   });
 
   return new Promise((resolve) => {
-    rl.question(`\x1b[33m${prompt} Press (y/n) and then press enter:\x1b[0m \n`, (answer) => {
+    rl.question(`${prompt}\n\nPress (y/n) and then press enter:`, (answer) => {
       rl.close();
       resolve(answer.toLowerCase() === "y");
     });
