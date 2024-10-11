@@ -30,7 +30,7 @@ set -e
 
 # Download the latest release
 echo "Downloading the latest AI Console Agent..."
-# curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
+curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
 
 # Make the binary executable
 chmod +x ai-console-agent
