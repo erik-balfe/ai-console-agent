@@ -39,10 +39,13 @@ async function main() {
 main().catch(console.error);
 
 function checkAPIKey() {
-  if (OPENAI_API_KEY?.length === 0) throw new Error("OPENAI_API_KEY is not set");
-  else {
-    // maybe test the API key by simple request to openai for available models
-    //  to test if the key is valid
-    return true;
+  if (!OPENAI_API_KEY) {
+    console.error(
+      chalk.red("Error: OPENAI_API_KEY is not set. Please set it in your environment variables."),
+    );
+    console.log(chalk.yellow("You can set it by running:"));
+    // refer to readme and provide more easy way to set the key
+    console.log(chalk.cyan("export OPENAI_API_KEY=your_api_key_here"));
+    process.exit(1);
   }
 }

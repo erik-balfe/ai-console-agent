@@ -31,7 +31,6 @@ AI Console Agent is an advanced command-line tool that uses artificial intellige
 
 ## Installation
 
-
 ### Quick Install (Recommended)
 
 You can install AI Console Agent with a single command:
@@ -41,6 +40,7 @@ curl -sSL https://raw.githubusercontent.com/erik-balfe/ai-console-agent/master/i
 ```
 
 This command will:
+
 - Download the latest AI Console Agent binary
 - Make it executable
 - Install it in a directory in your PATH
@@ -52,59 +52,61 @@ After installation, restart your terminal or run `source ~/.bashrc` (or `~/.zshr
 ai-console-agent "Your natural language command or question here"
 ```
 
-
 ### Manual Installation
 
 If you prefer to install manually:
 
 1. Download the latest release:
+
    ```
    curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
    ```
 
 2. Make the file executable:
+
    ```
    chmod +x ai-console-agent
    ```
 
 3. Move the file to a directory in your PATH:
+
    ```
    sudo mv ai-console-agent /usr/local/bin/
    ```
 
 4. Set up your OpenAI API key:
+
    ```
    echo "export OPENAI_API_KEY=your_api_key_here" >> ~/.bashrc
    source ~/.bashrc
    ```
 
 5. Run AI Console Agent:
+
    ```
    ai-console-agent "Your natural language command or question here"
    ```
 
    Example:
+
    ```
    ai-console-agent "Show me the disk usage of the current directory"
    ```
 
-
-
-
-1. Clone the repository:
+6. Clone the repository:
 
    ```
    git clone https://github.com/yourusername/ai-console-agent.git
    cd ai-console-agent
    ```
 
-2. Install dependencies:
+7. Install dependencies:
 
    ```
    bun install
    ```
 
-3. Set up your OpenAI API key:
+8. Set up your OpenAI API key:
    Create a `.env` file in the project root and add your API key:
    ```
    OPENAI_API_KEY=your_api_key_here
@@ -128,23 +130,19 @@ The agent will interpret your request, execute the necessary commands, and provi
 
 ## Development
 
-
 ### Prerequisites
 
 - Bun. To install Bun, follow the instructions at https://bun.sh/.
 - Git
 
-
 ### Compilation and Distribution
-
-### Prerequisites
-
 
 ### Compilation Process
 
+#### Building on local machine
+
 To compile the AI Console Agent into a standalone executable with source maps, follow these steps:
 This project requires Bun version 1.1.30. Compilation with lower versions may have some problems.
-
 
 1. Ensure all project dependencies are installed:
 
@@ -165,6 +163,34 @@ This project requires Bun version 1.1.30. Compilation with lower versions may ha
    ```
 
 4. The compiled executable will be created in the `dist` directory as `ai-console-agent`, along with source map files.
+
+#### Building in Docker
+
+1. Build the Docker image:
+
+   ```
+   docker build -t ai-console-agent .
+   ```
+
+   This command builds a Docker image based on your Dockerfile and tags it with the name "ai-console-agent".
+
+2. Once the image is built, you can run a container from this image to build your application:
+
+   ```sh
+   docker run --rm -v $(pwd)/dist:/app/dist ai-console-agent
+   ```
+
+   ```bash
+   docker run --rm -v $pwd/dist:/app/dist ai-console-agent
+   ```
+
+3. After the container finishes running, you should find the built application in your local `dist` directory.
+
+4. To test the built application, you can run:
+   ```
+   ./dist/ai-console-agent "Your test question here"
+   ```
+   Remember to set your OPENAI_API_KEY environment variable before running this command.
 
 ### Running the Compiled Executable
 

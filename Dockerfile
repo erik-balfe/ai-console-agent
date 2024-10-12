@@ -2,14 +2,16 @@ FROM oven/bun:1.1.30
 
 WORKDIR /app
 
-COPY src ./src
-COPY bun.lockb ./bun.lockb
-COPY build.ts ./build.ts
-COPY tsconfig.json ./tsconfig.json
-COPY package.json ./package.json
+# Copy package management files
+COPY package.json bun.lockb* ./
 
-RUN mkdir -p /tmp/build && mkdir -p /app/dist
-
+# Install dependencies
 RUN bun install --frozen-lockfile
 
+# Copy source code and configuration files
+COPY src/ ./src/
+COPY tsconfig.json ./
+COPY build.ts ./
+
+# Run command (this will run when the container starts)
 CMD ["bun", "run", "build"]

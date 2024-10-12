@@ -7,6 +7,7 @@ const PROJECT_ROOT = process.cwd();
 const DIST_DIR = path.join(PROJECT_ROOT, "dist");
 const MAIN_FILE = path.join(PROJECT_ROOT, "src", "index.ts");
 const OUTPUT_FILE = path.join(DIST_DIR, "ai-console-agent");
+const TEMP_OUTPUT_FILE = path.join(PROJECT_ROOT, "temp-ai-console-agent");
 
 async function build() {
   checkBunVersion();
@@ -16,9 +17,8 @@ async function build() {
   console.log(`Bun version: ${process.versions.bun}`);
   console.log(`Current working directory: ${process.cwd()}`);
 
-  if (!fs.existsSync(DIST_DIR)) {
-    fs.mkdirSync(DIST_DIR, { recursive: true });
-  }
+  // Ensure dist directory exists or create it
+  ensureDirectoryExists(DIST_DIR);
 
   console.log("Installing dependencies...");
   const installResult = spawnSync("bun", ["install", "--frozen-lockfile"], { stdio: "inherit" });
@@ -37,7 +37,7 @@ async function build() {
       "--minify",
       "--sourcemap",
       "--outfile",
-      OUTPUT_FILE,
+      TEMP_OUTPUT_FILE,
       "--target",
       "bun",
       "--format",
@@ -51,15 +51,28 @@ async function build() {
     process.exit(1);
   }
 
+  // Move the compiled file to the dist directory
+  try {
+    fs.copyFileSync(TEMP_OUTPUT_FILE, OUTPUT_FILE);
+    fs.unlinkSync(TEMP_OUTPUT_FILE); // Remove the temporary file
+  } catch (error) {
+    console.error("Error moving compiled file:", error);
+    process.exit(1);
+  }
+
   console.log(`Build completed successfully. Executable: ${OUTPUT_FILE}`);
 
   // Log file information
-  const stats = fs.statSync(OUTPUT_FILE);
-  console.log(`File size: ${stats.size} bytes`);
-  const hash = crypto.createHash("sha256");
-  const data = fs.readFileSync(OUTPUT_FILE);
-  hash.update(data);
-  console.log(`SHA256 hash: ${hash.digest("hex")}`);
+  try {
+    const stats = fs.statSync(OUTPUT_FILE);
+    console.log(`File size: ${stats.size} bytes`);
+    const hash = crypto.createHash("sha256");
+    const data = fs.readFileSync(OUTPUT_FILE);
+    hash.update(data);
+    console.log(`SHA256 hash: ${hash.digest("hex")}`);
+  } catch (error) {
+    console.error("Error reading compiled file:", error);
+  }
 }
 
 function checkBunVersion() {
@@ -71,6 +84,20 @@ function checkBunVersion() {
     console.warn(
       `Warning: This project is tested with Bun version ${requiredVersion}. You are using ${version}.`,
     );
+  }
+}
+
+function ensureDirectoryExists(dir: string) {
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`Created directory: ${dir}`);
+    } catch (error) {
+      console.error(`Error creating directory ${dir}:`, error);
+      process.exit(1);
+    }
+  } else {
+    console.log(`Directory already exists: ${dir}`);
   }
 }
 
