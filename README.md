@@ -142,12 +142,11 @@ The agent will interpret your request, execute the necessary commands, and provi
 #### Building on local machine
 
 To compile the AI Console Agent into a standalone executable with source maps, follow these steps:
-This project requires Bun version 1.1.30. Compilation with lower versions may have some problems.
 
-1. Ensure all project dependencies are installed:
+1. Ensure Bun is installed. If not, install it using:
 
    ```
-   bun install
+   curl -fsSL https://bun.sh/install | bash
    ```
 
 2. Run the build script:
@@ -162,9 +161,11 @@ This project requires Bun version 1.1.30. Compilation with lower versions may ha
    Build completed successfully. Executable: /path/to/ai-console-agent/dist/ai-console-agent
    ```
 
-4. The compiled executable will be created in the `dist` directory as `ai-console-agent`, along with source map files.
+The compiled executable will be created in the `dist` directory as `ai-console-agent`.
 
 #### Building in Docker
+
+> **Note**: Building in Docker is currently not working and is a work in progress. The following steps are provided for reference but may not function as expected. We are actively working on resolving this issue.
 
 1. Build the Docker image:
 
@@ -200,9 +201,13 @@ After successful compilation, run the AI Console Agent using:
 ./dist/ai-console-agent "Your command here"
 ```
 
+Remember to use the double quotes around your command to avoid issues with special characters in you message.
+
 This executable includes all necessary dependencies and can be distributed as a standalone program.
 
 ### Release Process for Developers
+
+> **Note**: The automatic release process for this app via GitHub Actions is currently suspended due to critical errors in the build process of Bun. The executable produced by the GitHub Actions workflow contains a critical error that prevents the application from functioning correctly. As a result, only manual building is working at the moment. The release process described below is temporarily on hold until these issues are resolved.
 
 To create a new release:
 
@@ -237,7 +242,7 @@ Read about it here: https://bun.sh/docs/bundler/executables
 
 If you encounter errors related to missing packages during compilation, follow these steps:
 
-1. Identify the missing packages from the error messages. Common missing packages might include:
+1. Identify the missing packages from the error messages. For example these were such problem packages (currently already included in dev deps, so theyre not a problem anymore):
 
    - pg
    - @xenova/transformers
@@ -255,7 +260,7 @@ If you encounter errors related to missing packages during compilation, follow t
    bun add -d pg @xenova/transformers pgvector
    ```
 
-3. Update your `package.json` to include these as dev dependencies:
+3. Look that your `package.json` is updated to include these as dev dependencies:
 
    ```json
    {
@@ -280,7 +285,10 @@ If you encounter errors related to missing packages during compilation, follow t
 
 Note: This issue may occur if there are changes in the `llamaindex` package or its dependencies. Always check for updates and be prepared to add new dev dependencies as needed.
 
-### Development Run
+Currently adding such packages as dev deps resolves the issue with building project in a single executable.
+The problem happens because of dynamic imports in deps of current project, so only adding them as dev deps helps.
+
+### Development run
 
 For development and testing purposes, you can run the project directly without compilation:
 
@@ -334,4 +342,4 @@ If you encounter any problems or have any questions, please open an issue on the
 
 ## Version
 
-Current version: 0.2.1
+Current version: 0.2.3

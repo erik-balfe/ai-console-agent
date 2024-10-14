@@ -10,14 +10,17 @@ const OUTPUT_FILE = path.join(DIST_DIR, "ai-console-agent");
 const TEMP_OUTPUT_FILE = path.join(PROJECT_ROOT, "temp-ai-console-agent");
 
 async function build() {
-  checkBunVersion();
-
   console.log("Starting build process...");
   console.log("Build environment:");
   console.log(`Bun version: ${process.versions.bun}`);
   console.log(`Current working directory: ${process.cwd()}`);
+  console.log(`PROJECT_ROOT: ${PROJECT_ROOT}`);
+  console.log(`DIST_DIR: ${DIST_DIR}`);
+  console.log(`MAIN_FILE: ${MAIN_FILE}`);
+  console.log(`OUTPUT_FILE: ${OUTPUT_FILE}`);
+  console.log(`TEMP_OUTPUT_FILE: ${TEMP_OUTPUT_FILE}`);
 
-  // Ensure dist directory exists or create it
+  checkBunVersion();
   ensureDirectoryExists(DIST_DIR);
 
   console.log("Installing dependencies...");
@@ -36,14 +39,17 @@ async function build() {
       "--compile",
       "--minify",
       "--sourcemap",
-      "--outfile",
-      TEMP_OUTPUT_FILE,
       "--target",
       "bun",
       "--format",
       "esm",
+      "--outfile",
+      TEMP_OUTPUT_FILE,
     ],
-    { stdio: "inherit" },
+    {
+      stdio: "inherit",
+      env: { ...process.env, NODE_ENV: "production" },
+    },
   );
 
   if (result.status !== 0) {

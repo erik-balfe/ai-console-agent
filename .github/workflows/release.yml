@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*.*.*"
+    branches:
+      - "temp-disabled" # building is suspended because it currently produces output with errors in runtime
 
 jobs:
   build:
