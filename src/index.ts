@@ -2,14 +2,15 @@ import chalk from "chalk";
 import { config } from "dotenv";
 import { runAgent } from "./ai/agent";
 import { parseArguments } from "./cli/interface";
-import { MAX_INPUT_LENGTH, OPENAI_API_KEY } from "./constants";
+import { MAX_INPUT_LENGTH } from "./constants";
+import { getOrPromptForAPIKey } from "./utils/getOrPromptForAPIKey";
 
 config();
 
 async function main() {
   const { input } = parseArguments(Bun.argv);
 
-  checkAPIKey();
+  const apiKey = await getOrPromptForAPIKey();
 
   if (input) {
     console.log(chalk.cyan(`Input: ${input}`));
@@ -37,15 +38,3 @@ async function main() {
 }
 
 main().catch(console.error);
-
-function checkAPIKey() {
-  if (!OPENAI_API_KEY) {
-    console.error(
-      chalk.red("Error: OPENAI_API_KEY is not set. Please set it in your environment variables."),
-    );
-    console.log(chalk.yellow("You can set it by running:"));
-    // refer to readme and provide more easy way to set the key
-    console.log(chalk.cyan("export OPENAI_API_KEY=your_api_key_here"));
-    process.exit(1);
-  }
-}

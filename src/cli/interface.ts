@@ -1,4 +1,4 @@
-import { input, select, Separator } from "@inquirer/prompts";
+import { input, password, select, Separator } from "@inquirer/prompts";
 import { stdin } from "process";
 
 export function parseArguments(args: string[]): { input: string } {
@@ -66,6 +66,9 @@ export async function displayOptionsAndGetInput(question: string, options: strin
   }
 }
 
-export async function getFreeformInput(prompt: string): Promise<string> {
+export async function getFreeformInput(prompt: string, isPassword: boolean = false): Promise<string> {
+  if (isPassword) {
+    return password({ message: prompt, mask: "*" });
+  }
   return input({ message: prompt });
 }
