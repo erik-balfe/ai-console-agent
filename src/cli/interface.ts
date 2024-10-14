@@ -1,20 +1,20 @@
 import { input, password, select, Separator } from "@inquirer/prompts";
 import { stdin } from "process";
 
-export function parseArguments(args: string[]): { input: string } {
-  console.log("### Parsing arguments:", args);
+export function parseArguments(args: string[]): { input: string; resetKey: boolean; showHelp: boolean } {
+  const hasResetKey = args.some((arg) => arg === "--reset-key");
+  const hasHelp = args.some((arg) => arg === "--help" || arg === "-h");
 
-  // Skip the first two arguments (node executable and script path)
+  if (hasHelp) {
+    return { input: "", resetKey: false, showHelp: true };
+  }
+
+  if (hasResetKey) {
+    return { input: "", resetKey: true, showHelp: false };
+  }
+
   const userInput = args.slice(2).join(" ");
-
-  console.log("### User input:", userInput);
-
-  const result = {
-    input: userInput,
-  };
-
-  console.log("### Parsed input:", result);
-  return result;
+  return { input: userInput, resetKey: false, showHelp: false };
 }
 
 export async function getPipedInput(): Promise<string> {

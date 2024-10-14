@@ -101,16 +101,26 @@ If you prefer to install manually:
 To run the AI Console Agent:
 
 ```
-ai-console-agent "Your natural language command or question here"
-```
-
-Example:
-
-```
 ai-console-agent "Show me the disk usage of the current directory"
 ```
 
 The agent will interpret your request, execute the necessary commands, and provide you with the results.
+
+For the first run you will be prompted to enter your OpenAI API key. After that, the key will be stored securely using your system's encrypted storage.
+
+If you want to reset the key, you can use the `--reset-key` argument:
+
+```
+ai-console-agent --reset-key
+```
+
+After that you will be prompted to enter your OpenAI API key again.
+
+To see usage information and all available options in console:
+
+```
+ai-console-agent --help
+```
 
 ## Development
 

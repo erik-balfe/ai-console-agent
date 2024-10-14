@@ -5,12 +5,12 @@ import { getAPIKey, storeAPIKey } from "./apiKeyManager";
 
 const MAX_RETRIES = 5;
 
-export async function getOrPromptForAPIKey(): Promise<string> {
+export async function getOrPromptForAPIKey(forceNew: boolean = false): Promise<string> {
   let retries = 0;
 
   while (retries < MAX_RETRIES) {
     try {
-      let apiKey = await getAPIKey();
+      let apiKey = forceNew ? null : await getAPIKey();
 
       if (!apiKey || !isValidAPIKey(apiKey)) {
         console.log(chalk.yellow("OpenAI API key not found or invalid."));
