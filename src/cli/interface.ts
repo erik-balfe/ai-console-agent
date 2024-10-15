@@ -1,35 +1,36 @@
 import { input, password, select, Separator } from "@inquirer/prompts";
-import { stdin } from "process";
+import { LogLevel } from "../utils/logger";
 
-export function parseArguments(args: string[]): { input: string; resetKey: boolean; showHelp: boolean } {
-  const hasResetKey = args.some((arg) => arg === "--reset-key");
-  const hasHelp = args.some((arg) => arg === "--help" || arg === "-h");
+export function parseArguments(args: string[]): {
+  input: string;
+  resetKey: boolean;
+  showHelp: boolean;
+  setLogLevel?: LogLevel;
+  getLogLevel: boolean;
+} {
+  const hasResetKey = args.includes("--reset-key");
+  const hasHelp = args.includes("--help") || args.includes("-h");
+  const getLogLevel = args.includes("--get-log-level");
 
-  if (hasHelp) {
-    return { input: "", resetKey: false, showHelp: true };
+  let setLogLevel: LogLevel | undefined;
+  const logLevelArg = args.find(
+    (arg) => arg.startsWith("--log-level=") || arg.startsWith("--set-log-level="),
+  );
+  if (logLevelArg) {
+    const levelString = logLevelArg.split("=")[1].toUpperCase();
+    setLogLevel = LogLevel[levelString as keyof typeof LogLevel];
   }
 
-  if (hasResetKey) {
-    return { input: "", resetKey: true, showHelp: false };
-  }
+  const inputArgs = args.slice(2).filter((arg) => !arg.startsWith("--") && arg !== "-h");
+  const userInput = inputArgs.join(" ");
 
-  const userInput = args.slice(2).join(" ");
-  return { input: userInput, resetKey: false, showHelp: false };
-}
-
-export async function getPipedInput(): Promise<string> {
-  return new Promise((resolve) => {
-    let data = "";
-    stdin.on("readable", () => {
-      let chunk;
-      while (null !== (chunk = stdin.read())) {
-        data += chunk;
-      }
-    });
-    stdin.on("end", () => {
-      resolve(data.trim());
-    });
-  });
+  return {
+    input: userInput,
+    resetKey: hasResetKey,
+    showHelp: hasHelp,
+    setLogLevel,
+    getLogLevel,
+  };
 }
 
 export async function displayOptionsAndGetInput(question: string, options: string[]): Promise<string> {

@@ -5,18 +5,18 @@ const ACCOUNT_NAME = "OpenAIAPIKey";
 
 const entry = new Entry(SERVICE_NAME, ACCOUNT_NAME);
 
-export async function storeAPIKey(apiKey: string): Promise<void> {
+export function storeAPIKey(apiKey: string): void {
   try {
-    await entry.setPassword(apiKey);
+    entry.setPassword(apiKey);
   } catch (error) {
     console.error("Failed to store API key:", error);
     throw new Error("Failed to securely store the API key");
   }
 }
 
-export async function getAPIKey(): Promise<string | null> {
+export function getAPIKey(): string | null {
   try {
-    return await entry.getPassword();
+    entry.getPassword();
   } catch (error) {
     if (error instanceof Error && error.message.includes("No password found")) {
       return null;
@@ -24,14 +24,16 @@ export async function getAPIKey(): Promise<string | null> {
     console.error("Failed to retrieve API key:", error);
     return null;
   }
+  return null;
 }
 
-export async function deleteAPIKey(): Promise<boolean> {
+export function deleteAPIKey(): boolean {
   try {
-    await entry.deletePassword();
+    entry.deletePassword();
     return true;
   } catch (error) {
     console.error("Failed to delete API key:", error);
     return false;
   }
+  false;
 }

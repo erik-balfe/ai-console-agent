@@ -1,29 +1,28 @@
-import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
 import { displayOptionsAndGetInput } from "../cli/interface";
+import { logger } from "../utils/logger";
 
 export const userInteractionTool = new FunctionTool(
   async (params: { question: string; options: string[]; allowFreeform: boolean }) => {
-    console.log("Starting userInteractionTool");
+    logger.debug("Starting userInteractionTool");
     const { question, options = [], allowFreeform = true } = params;
 
-    console.log("Question:", question);
-    console.log("Options:", options);
-    console.log("Allow freeform:", allowFreeform);
+    logger.userInteraction(`Question: ${question}`);
+    logger.debug(`Options: ${options.join(", ")}`);
 
     try {
       const result = await displayOptionsAndGetInput(question, options);
-      console.log("Result from displayOptionsAndGetInput:", result);
+      logger.userInteraction(`User response: ${result}`);
       return result;
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === "Task aborted by user") {
-          console.log(chalk.red("Task aborted by user."));
+          logger.warn("Task aborted by user.");
           return "ABORTED";
         }
-        console.error(chalk.red("Error during user interaction:"), error.message);
+        logger.error(`Error during user interaction: ${error.message}`);
       } else {
-        console.error(chalk.red("Unknown error during user interaction"));
+        logger.error("Unknown error during user interaction");
       }
       throw error;
     }

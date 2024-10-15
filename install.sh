@@ -91,19 +91,5 @@ fi
 
 echo "You can now run 'ai-console-agent' from anywhere in your terminal."
 
-# Prompt for OpenAI API key
-read -p "Enter your OpenAI API key: " OPENAI_API_KEY
-
-if [ -n "$SHELL_CONFIG_FILE" ]; then
-    if [ "$SHELL_NAME" = "fish" ]; then
-        echo "set -x OPENAI_API_KEY $OPENAI_API_KEY" >> "$SHELL_CONFIG_FILE"
-    else
-        echo "export OPENAI_API_KEY=$OPENAI_API_KEY" >> "$SHELL_CONFIG_FILE"
-    fi
-    echo "OpenAI API key has been added to your shell configuration."
-else
-    echo "Please set the OPENAI_API_KEY environment variable manually:"
-    echo "export OPENAI_API_KEY=$OPENAI_API_KEY"
-fi
-
 echo "Installation complete! Enjoy using AI Console Agent!"
+echo "When you run the agent for the first time, you will be prompted to enter your OpenAI API key."

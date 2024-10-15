@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
 import { displayOptionsAndGetInput } from "../cli/interface";
+import { logger } from "../utils/logger";
 import { getCurrentRunId } from "../utils/runManager";
 import { runShellCommand } from "../utils/runShellCommand";
 import { TmuxWrapper } from "./TmuxWrapper";
@@ -35,7 +36,7 @@ export const executeCommandTool = new FunctionTool(
     }
 
     try {
-      console.log(chalk.blue(`Executing command: ${command}`));
+      logger.info(`Executing command: ${command}`);
       let result: string;
 
       if (useTmux) {
@@ -45,17 +46,15 @@ export const executeCommandTool = new FunctionTool(
           const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
           result = JSON.stringify({ stdout, stderr });
         } catch (error) {
-          console.error(chalk.red("Error in tool executing command:"), error);
+          logger.error(`Error in tool executing command: ${error}`);
           return { stderr: error instanceof Error ? error.message : String(error) };
         }
       }
 
-      console.log(
-        chalk.green(`Successfully completed command "${command}"`) + chalk.gray(`\nResult:\n"${result}"`),
-      );
+      logger.debug(`Command result: ${result}`);
       return result;
     } catch (error: unknown) {
-      console.error(chalk.red("Error in tool executing command:"), error);
+      logger.error(`Failed to execute command: ${error instanceof Error ? error.message : String(error)}`);
       return `Failed to execute command: ${error instanceof Error ? error.message : String(error)}`;
     }
   },
