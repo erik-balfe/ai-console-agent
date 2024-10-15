@@ -2,7 +2,7 @@ import { FunctionTool } from "llamaindex";
 import { displayOptionsAndGetInput } from "../cli/interface";
 import { logger } from "../utils/logger";
 
-export const userInteractionTool = new FunctionTool(
+export const askUserTool = new FunctionTool(
   async (params: { question: string; options: string[]; allowFreeform: boolean }) => {
     logger.debug("Starting userInteractionTool");
     const { question, options = [], allowFreeform = true } = params;
@@ -28,7 +28,7 @@ export const userInteractionTool = new FunctionTool(
     }
   },
   {
-    name: "userInteraction",
+    name: "askUser",
     description:
       "Interact with the user to get input, confirmation, or clarification on ambiguous points. Provide answer options for better UX and more quality interaction with user. Also supports free-form input by user if not disabled",
     parameters: {
