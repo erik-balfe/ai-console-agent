@@ -10,7 +10,7 @@ export async function getOrPromptForAPIKey(forceNew: boolean = false): Promise<s
 
   while (retries < MAX_RETRIES) {
     try {
-      let apiKey = forceNew ? null : await getAPIKey();
+      let apiKey = forceNew ? null : getAPIKey();
 
       if (!apiKey || !isValidAPIKey(apiKey)) {
         console.log(chalk.yellow("OpenAI API key not found or invalid."));
@@ -22,7 +22,7 @@ export async function getOrPromptForAPIKey(forceNew: boolean = false): Promise<s
           continue;
         }
 
-        await storeAPIKey(apiKey);
+        storeAPIKey(apiKey);
         console.log(chalk.green("API key has been securely stored."));
       }
 

@@ -14,20 +14,23 @@ config();
 async function main() {
   const { input, resetKey, showHelp, setLogLevel, getLogLevel } = parseArguments(Bun.argv);
 
-  const storedConfig = loadConfig();
+  const { appConfig, userPrefs } = loadConfig();
 
   if (setLogLevel !== undefined) {
-    saveConfig({ logLevel: setLogLevel });
-    console.log(chalk.green(`Log level has been set to ${LogLevel[setLogLevel]}`));
+    if (saveConfig({ logLevel: setLogLevel }, {})) {
+      console.log(chalk.green(`Log level has been set to ${LogLevel[setLogLevel]}`));
+    } else {
+      console.log(chalk.red("Failed to set log level. Please try again."));
+    }
     return;
   }
 
   if (getLogLevel) {
-    console.log(chalk.blue(`Current log level: ${LogLevel[storedConfig.logLevel]}`));
+    console.log(chalk.blue(`Current log level: ${LogLevel[appConfig.logLevel]}`));
     return;
   }
 
-  logger.setLevel(storedConfig.logLevel);
+  logger.setLevel(appConfig.logLevel);
 
   if (showHelp) {
     printHelp();
