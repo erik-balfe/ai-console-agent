@@ -28,48 +28,45 @@ export class Logger {
     this.currentLevel = level;
   }
 
-  debug(message: string) {
-    if (this.currentLevel <= LogLevel.DEBUG) {
-      console.log(chalk.gray(`[DEBUG] ${message}`));
+  private log(level: LogLevel, color: chalk.ChalkFunction, tag: string, ...messages: any[]) {
+    if (this.currentLevel <= level) {
+      const formattedMessages = messages
+        .map((msg) => (typeof msg === "object" ? JSON.stringify(msg) : msg))
+        .join(" ");
+      console.log(color(`[${tag}] ${formattedMessages}`));
     }
   }
 
-  info(message: string) {
-    if (this.currentLevel <= LogLevel.INFO) {
-      console.log(chalk.blue(`[INFO] ${message}`));
-    }
+  debug(...messages: any[]) {
+    this.log(LogLevel.DEBUG, chalk.gray, "DEBUG", ...messages);
   }
 
-  warn(message: string) {
-    if (this.currentLevel <= LogLevel.WARN) {
-      console.log(chalk.yellow(`[WARN] ${message}`));
-    }
+  info(...messages: any[]) {
+    this.log(LogLevel.INFO, chalk.blue, "INFO", ...messages);
   }
 
-  error(message: string) {
-    if (this.currentLevel <= LogLevel.ERROR) {
-      console.log(chalk.red(`[ERROR] ${message}`));
-    }
+  warn(...messages: any[]) {
+    this.log(LogLevel.WARN, chalk.yellow, "WARN", ...messages);
   }
 
-  command(command: string) {
-    if (this.currentLevel <= LogLevel.INFO) {
-      console.log(chalk.cyan(`[COMMAND] ${command}`));
-    }
+  error(...messages: any[]) {
+    this.log(LogLevel.ERROR, chalk.red, "ERROR", ...messages);
   }
 
-  commandOutput(output: string) {
-    if (this.currentLevel <= LogLevel.DEBUG) {
-      console.log(chalk.gray(`[OUTPUT] ${output}`));
-    }
+  command(...messages: any[]) {
+    this.log(LogLevel.INFO, chalk.cyan, "COMMAND", ...messages);
   }
 
-  agentResponse(response: string) {
-    console.log(chalk.green(`[AGENT] ${response}`));
+  commandOutput(...messages: any[]) {
+    this.log(LogLevel.DEBUG, chalk.gray, "OUTPUT", ...messages);
   }
 
-  userInteraction(message: string) {
-    console.log(chalk.magenta(`[USER] ${message}`));
+  agentResponse(...messages: any[]) {
+    this.log(LogLevel.INFO, chalk.green, "AGENT", ...messages);
+  }
+
+  userInteraction(...messages: any[]) {
+    this.log(LogLevel.INFO, chalk.magenta, "USER", ...messages);
   }
 }
 
