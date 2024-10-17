@@ -10,7 +10,8 @@
     "build": "bun run build.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/chalk": "^2.2.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

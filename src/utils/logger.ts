@@ -1,15 +1,17 @@
 import chalk from "chalk";
 
-export enum LogLevel {
-  DEBUG,
-  INFO,
-  WARN,
-  ERROR,
-}
+export const LogLevel = {
+  DEBUG: "DEBUG" as const,
+  INFO: "INFO" as const,
+  WARN: "WARN" as const,
+  ERROR: "ERROR" as const,
+};
+
+export type LogLevelType = (typeof LogLevel)[keyof typeof LogLevel];
 
 export class Logger {
   private static instance: Logger;
-  private currentLevel: LogLevel = LogLevel.INFO;
+  private currentLevel: LogLevelType = LogLevel.INFO; // Default level
 
   private constructor() {}
 
@@ -20,16 +22,26 @@ export class Logger {
     return Logger.instance;
   }
 
-  getLevel(): LogLevel {
+  getLevel(): LogLevelType {
     return this.currentLevel;
   }
 
-  setLevel(level: LogLevel) {
+  setLevel(level: LogLevelType) {
     this.currentLevel = level;
   }
 
-  private log(level: LogLevel, color: chalk.ChalkFunction, tag: string, ...messages: any[]) {
-    if (this.currentLevel <= level) {
+  private logLevelValue(level: LogLevelType): number {
+    const levels = {
+      [LogLevel.DEBUG]: 0,
+      [LogLevel.INFO]: 1,
+      [LogLevel.WARN]: 2,
+      [LogLevel.ERROR]: 3,
+    };
+    return levels[level];
+  }
+
+  private log(level: LogLevelType, color: (str: string) => string, tag: string, ...messages: any[]) {
+    if (this.logLevelValue(this.currentLevel) <= this.logLevelValue(level)) {
       const formattedMessages = messages
         .map((msg) => (typeof msg === "object" ? JSON.stringify(msg) : msg))
         .join(" ");
@@ -38,19 +50,19 @@ export class Logger {
   }
 
   debug(...messages: any[]) {
-    this.log(LogLevel.DEBUG, chalk.gray, "DEBUG", ...messages);
+    this.log(LogLevel.DEBUG, chalk.gray, LogLevel.DEBUG, ...messages);
   }
 
   info(...messages: any[]) {
-    this.log(LogLevel.INFO, chalk.blue, "INFO", ...messages);
+    this.log(LogLevel.INFO, chalk.blue, LogLevel.INFO, ...messages);
   }
 
   warn(...messages: any[]) {
-    this.log(LogLevel.WARN, chalk.yellow, "WARN", ...messages);
+    this.log(LogLevel.WARN, chalk.yellow, LogLevel.WARN, ...messages);
   }
 
   error(...messages: any[]) {
-    this.log(LogLevel.ERROR, chalk.red, "ERROR", ...messages);
+    this.log(LogLevel.ERROR, chalk.red, LogLevel.ERROR, ...messages);
   }
 
   command(...messages: any[]) {
