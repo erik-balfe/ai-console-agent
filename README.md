@@ -20,21 +20,28 @@ AI Console Agent is an advanced command-line tool that uses artificial intellige
 
 - Natural language processing for command interpretation
 - Execution of system commands based on user input
-- Intelligent file handling with automatic backups
-- Non-interactive operation for most tasks
-- User interaction for clarifications and confirmations
+- Intelligent careful file handling with automatic backups
+- Ask user for clarifications and confirmations
 - Cautious command execution with step-by-step verification
-- Use of a dedicated workspace for intermediate results
-- Proactive information gathering about the system state
-- Home directory caution for potentially risky operations
+- Use of a dedicated scratch space for storing intermediate results and working on files not affecting user files
+- Proactive information gathering about the system configuration and user preferences
 - Colorized console output for better readability
 - Secure storage of OpenAI API key using system keychain
+- Putting down user preferences for further more personalized interactions
+
+### Planned features
+
+- Storing all history of user queries and log of working on the tasks
+- Considering all prev history when dealing with new tasks
+- Support for viewing image files
+- Support for web search for getting actual information
+- More interactive mode. When agent can inform the user about current state of working on the task and understand time consumptions of different commands and warn about them and consider time of different approachen when planning tasks
 
 ## Installation
 
 ### Quick Install (Recommended)
 
-You can install AI Console Agent with a single command:
+You can install AI Console Agent by pasting this single command and running it in your terminal:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/erik-balfe/ai-console-agent/master/install.sh | bash
@@ -47,7 +54,7 @@ This command will:
 - Install it in a directory in your PATH
 - Guide you through setting up your OpenAI API key securely
 
-After installation, restart your terminal or run `source ~/.bashrc` (or `~/.zshrc` for Zsh users), then you can use AI Console Agent from anywhere:
+After installation you can use AI Console Agent from anywhere like this:
 
 ```bash
 ai-console-agent "Your natural language command or question here"

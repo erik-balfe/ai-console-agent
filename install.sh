@@ -2,8 +2,10 @@
 
 set -e
 
+PREFIX="[AI_CONSOLE_AGENT_INSTALLER]"
+
 install_tmux() {
-    echo "tmux is not installed. Attempting to install..."
+    echo "$PREFIX tmux is not installed. Attempting to install..."
     if [[ "$OSTYPE" == "darwin"* ]]; then
         brew install tmux
     elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -12,11 +14,11 @@ install_tmux() {
         elif [ -f "/etc/fedora-release" ]; then
             sudo dnf install -y tmux
         else
-            echo "Unable to install tmux automatically  . Please install tmux manually and run this script again."
+            echo "$PREFIX Unable to install tmux automatically. Please install tmux manually and run this script again."
             exit 1
         fi
     else
-        echo "Unsupported operating system. Please install tmux manually and run this script again."
+        echo "$PREFIX Unsupported operating system. Please install tmux manually and run this script again."
         exit 1
     fi
 }
@@ -29,7 +31,7 @@ fi
 set -e
 
 # Download the latest release
-echo "Downloading the latest AI Console Agent..."
+echo "$PREFIX Downloading the latest AI Console Agent..."
 curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
 
 # Make the binary executable
@@ -41,7 +43,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     OS="Linux"
 else
-    echo "Unsupported operating system. This script is designed for macOS and Linux."
+    echo "$PREFIX Unsupported operating system. This script is designed for macOS and Linux."
     exit 1
 fi
 
@@ -56,7 +58,7 @@ elif [ -n "$FISH_VERSION" ]; then
     SHELL_NAME="fish"
     SHELL_CONFIG_FILE="$HOME/.config/fish/config.fish"
 else
-    echo "Unsupported shell. Please add the installation directory to your PATH manually."
+    echo "$PREFIX Unsupported shell. Please add the installation directory to your PATH manually."
     SHELL_NAME="unknown"
     SHELL_CONFIG_FILE=""
 fi
@@ -76,20 +78,20 @@ if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     export PATH=$PATH:$INSTALL_DIR
 fi
 
-echo "AI Console Agent has been installed successfully!"
+echo "$PREFIX AI Console Agent has been installed successfully!"
 
 if [ -n "$SHELL_CONFIG_FILE" ]; then
-    echo "Please restart your terminal or run the following command to use the agent:"
+    echo "$PREFIX Please restart your terminal or run the following command to use the agent:"
     if [ "$SHELL_NAME" = "fish" ]; then
         echo "source $SHELL_CONFIG_FILE"
     else
         echo "source $SHELL_CONFIG_FILE"
     fi
 else
-    echo "Please add $INSTALL_DIR to your PATH manually to use the agent."
+    echo "$PREFIX Please add $INSTALL_DIR to your PATH manually to use the agent."
 fi
 
-echo "You can now run 'ai-console-agent' from anywhere in your terminal."
+echo "$PREFIX You can now run 'ai-console-agent' from anywhere in your terminal."
 
-echo "Installation complete! Enjoy using AI Console Agent!"
-echo "When you run the agent for the first time, you will be prompted to enter your OpenAI API key."
+echo "$PREFIX Installation complete! Enjoy using AI Console Agent!"
+echo "$PREFIX When you run the agent for the first time, you will be prompted to enter your OpenAI API key."
