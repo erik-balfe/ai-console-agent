@@ -15,6 +15,12 @@
     "strictNullChecks": true,
     "allowSyntheticDefaultImports": true
   },
+  "ts-node": {
+    "files": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }

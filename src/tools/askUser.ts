@@ -12,15 +12,18 @@ export const askUserTool = new FunctionTool(
 
     try {
       const result = await displayOptionsAndGetInput(question, options);
+
       logger.userInteraction(`User response: ${result}`);
+      if (result === "<input_aborted_by_user />") {
+        throw new Error(result);
+      }
       return result;
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Task aborted by user") {
-          logger.warn("Task aborted by user.");
-          return "ABORTED";
+        if (error.message === "<input_aborted_by_user />") {
+          logger.info(`AskUser choice aborted by user`);
+          throw error;
         }
-        logger.error(`Error during user interaction: ${error.message}`);
       } else {
         logger.error("Unknown error during user interaction");
       }

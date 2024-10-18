@@ -161,39 +161,53 @@ export async function runAgent(input: string) {
       verbose: logger.getLevel() === LogLevel.DEBUG,
       chatHistory: messages,
     });
-    const task = agent.createTask(taskMessageContent);
 
     let responseContent = "";
     let totalUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
     let stepNumber = 0;
-    for await (const stepOutput of task as any) {
-      try {
-        const parsedResponse = parseAgentResponse(stepOutput);
-        responseContent = parsedResponse.content;
-        const informUserMatch = responseContent.match(
-          new RegExp(`<${informUserTag}>([\s\S]*?)</${informUserTag}>`, "g"),
-        );
-        if (informUserMatch) {
-          informUserMatch.forEach((match) => {
-            const messageContent = match.replace(new RegExp(`</?${informUserTag}>`, "g"), "");
-            console.log(formatUserMessage(messageContent));
-          });
+
+    try {
+      const task = agent.createTask(taskMessageContent);
+      for await (const stepOutput of task as any) {
+        try {
+          const parsedResponse = parseAgentResponse(stepOutput);
+          responseContent = parsedResponse.content;
+          const informUserMatch = responseContent.match(
+            new RegExp(`<${informUserTag}>([\s\S]*?)</${informUserTag}>`, "g"),
+          );
+          if (informUserMatch) {
+            informUserMatch.forEach((match) => {
+              const messageContent = match.replace(new RegExp(`</?${informUserTag}>`, "g"), "");
+              console.log(formatUserMessage(messageContent));
+            });
+          }
+          totalUsage.inputTokens += parsedResponse.usage.input_tokens || parsedResponse.usage.prompt_tokens;
+          totalUsage.outputTokens +=
+            parsedResponse.usage.output_tokens || parsedResponse.usage.completion_tokens;
+          totalUsage.cachedTokens += parsedResponse.usage.prompt_tokens_details?.cached_tokens || 0;
+
+          responseContent && logger.debug(`Agent step ${stepNumber} output: ${responseContent}`);
+          stepNumber++;
+        } catch (error) {
+          if (error instanceof Error && error.message === "<input_aborted_by_user />") {
+            logger.info("Task aborted by user.");
+            return "Task aborted by user.";
+          }
+          logger.error(`Error in agent execution: ${error}`);
+          throw error;
         }
-        totalUsage.inputTokens += parsedResponse.usage.input_tokens || parsedResponse.usage.prompt_tokens;
-        totalUsage.outputTokens +=
-          parsedResponse.usage.output_tokens || parsedResponse.usage.completion_tokens;
-        totalUsage.cachedTokens += parsedResponse.usage.prompt_tokens_details?.cached_tokens || 0;
-
-        responseContent && logger.debug(`Agent step ${stepNumber} output: ${responseContent}`);
-      } catch (error) {
-        logger.error(`Error in agent execution: ${error}`);
-        return "An error occurred while processing your request. Please ensure you're providing both a command and an instruction.";
-      } finally {
-        stepNumber++;
       }
+    } catch (error) {
+      if (error instanceof Error && error.message === "<input_aborted_by_user />") {
+        logger.info("Task aborted by user.");
+        return "Task aborted by user.";
+      }
+      logger.error(`Error in agent execution: ${error}`);
+      return "An error occurred while processing your request. Please ensure you're providing both a command and an instruction.";
+    } finally {
+      logger.info(`Token usage: ${JSON.stringify(totalUsage)}`);
+      await TmuxWrapper.cleanup();
     }
-
-    logger.info(`Token usage: ${JSON.stringify(totalUsage)}`);
 
     const finalResultMatch = responseContent.match(/<final_result>([\s\S]*?)<\/final_result>/i);
     if (finalResultMatch) {
@@ -204,6 +218,11 @@ export async function runAgent(input: string) {
       );
       return "The agent did not provide a final result. Here's the last response: " + responseContent;
     }
+  } catch (err) {
+    logger.error("Unhandled error in agent run", err.message);
+    logger.error(err);
+    logger.error("Stack", err.stack);
+    return "An unexpected error occurred. Please try again.";
   } finally {
     await TmuxWrapper.cleanup();
   }

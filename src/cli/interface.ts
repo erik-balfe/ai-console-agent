@@ -1,36 +1,68 @@
 import { input, password, select, Separator } from "@inquirer/prompts";
-import { LogLevel } from "../utils/logger";
+import chalk from "chalk";
+import { LogLevel, LogLevelType } from "../utils/logger";
 
-export function parseArguments(args: string[]): {
+export interface ParsedArguments {
   input: string;
   resetKey: boolean;
   showHelp: boolean;
-  setLogLevel?: LogLevel;
+  setLogLevel?: LogLevelType;
   getLogLevel: boolean;
-} {
-  const hasResetKey = args.includes("--reset-key");
-  const hasHelp = args.includes("--help") || args.includes("-h");
-  const getLogLevel = args.includes("--get-log-level");
+}
 
-  let setLogLevel: LogLevel | undefined;
-  const logLevelArg = args.find(
-    (arg) => arg.startsWith("--log-level=") || arg.startsWith("--set-log-level="),
-  );
-  if (logLevelArg) {
-    const levelString = logLevelArg.split("=")[1].toUpperCase();
-    setLogLevel = LogLevel[levelString as keyof typeof LogLevel];
+export function parseArguments(args: string[]): ParsedArguments {
+  const parsedArgs: ParsedArguments = {
+    input: "",
+    resetKey: false,
+    showHelp: false,
+    getLogLevel: false,
+  };
+
+  for (let i = 2; i < args.length; i++) {
+    const arg = args[i];
+    switch (arg) {
+      case "--reset-key":
+        parsedArgs.resetKey = true;
+        break;
+      case "--help":
+      case "-h":
+        parsedArgs.showHelp = true;
+        break;
+      case "--get-log-level":
+        parsedArgs.getLogLevel = true;
+        break;
+      default:
+        if (arg.startsWith("--log-level=") || arg.startsWith("--set-log-level=")) {
+          const levelString = arg.split("=")[1].toUpperCase() as keyof typeof LogLevel;
+          if (LogLevel[levelString]) {
+            parsedArgs.setLogLevel = levelString;
+          } else {
+            throw new Error(`Invalid log level '${levelString}'.`);
+          }
+        } else if (!arg.startsWith("--")) {
+          parsedArgs.input += (parsedArgs.input ? " " : "") + arg;
+        } else {
+          throw new Error(`Unknown argument: ${arg}`);
+        }
+    }
   }
 
-  const inputArgs = args.slice(2).filter((arg) => !arg.startsWith("--") && arg !== "-h");
-  const userInput = inputArgs.join(" ");
+  return parsedArgs;
+}
 
-  return {
-    input: userInput,
-    resetKey: hasResetKey,
-    showHelp: hasHelp,
-    setLogLevel,
-    getLogLevel,
-  };
+export function printHelp() {
+  console.log(chalk.cyan("AI Console Agent Usage:"));
+  console.log('  ai-console-agent [options] "<your command or question>"');
+  console.log("\nOptions:");
+  console.log("  --help, -h                  Show this help message");
+  console.log("  --reset-key                 Delete the stored API key and prompt for a new one");
+  console.log("  --log-level=<level>         Set the log level (DEBUG, INFO, WARN, ERROR)");
+  console.log("  --get-log-level             Display the current log level");
+  console.log("\nExamples:");
+  console.log('  ai-console-agent "Show me the disk usage of the current directory"');
+  console.log("  ai-console-agent --reset-key");
+  console.log("  ai-console-agent --log-level=DEBUG");
+  console.log("  ai-console-agent --get-log-level");
 }
 
 export async function displayOptionsAndGetInput(question: string, options: string[]): Promise<string> {
@@ -53,15 +85,11 @@ export async function displayOptionsAndGetInput(question: string, options: strin
     }
 
     if (answer === "ABORT") {
-      throw new Error("Task aborted by user");
+      return "<input_aborted_by_user />";
     }
 
     return answer;
   } catch (error) {
-    if (error instanceof Error && error.message === "Task aborted by user") {
-      console.log("Task aborted by user.");
-      process.exit(0);
-    }
     console.error("Error during user interaction:", error);
     throw error;
   }

@@ -2,10 +2,10 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { APP_CONFIG_FILE_PATH, CONFIG_DIR_PATH, USER_PREFS_FILE_PATH } from "../constants";
-import { LogLevel } from "./logger";
+import { LogLevel, LogLevelType } from "./logger";
 
 export interface AppConfig {
-  logLevel: LogLevel;
+  logLevel: LogLevelType;
   // ... other app settings
 }
 
@@ -61,14 +61,16 @@ function execCommand(command: string, cwd: string): string {
 function initGitRepo() {
   if (!fs.existsSync(path.join(CONFIG_DIR_PATH, ".git"))) {
     execCommand("git init", CONFIG_DIR_PATH);
-    execCommand("git add .", CONFIG_DIR_PATH);
+    execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
+    execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
     execCommand('git commit -m "Initial commit"', CONFIG_DIR_PATH);
   }
 }
 
 function commitChanges(message: string): boolean {
   try {
-    execCommand("git add .", CONFIG_DIR_PATH);
+    execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
+    execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
     execCommand(`git commit -m "${message}"`, CONFIG_DIR_PATH);
     return true;
   } catch (error) {
@@ -106,7 +108,7 @@ export function loadConfig(): { appConfig: AppConfig; userPrefs: UserPreferences
       const parsedConfig = parseConfigFile(APP_CONFIG_FILE_PATH);
       appConfig = {
         ...DEFAULT_APP_CONFIG,
-        logLevel: (parsedConfig.logLevel as LogLevel) || DEFAULT_APP_CONFIG.logLevel,
+        logLevel: (parsedConfig.logLevel as LogLevelType) || DEFAULT_APP_CONFIG.logLevel,
       };
     } else {
       writeConfigFile(APP_CONFIG_FILE_PATH, DEFAULT_APP_CONFIG);

@@ -61,7 +61,7 @@ export const executeCommandTool = new FunctionTool(
   {
     name: "executeCommand",
     description:
-      "Execute a command on the user's system and return the output. Can handle commands requiring simple interactions.",
+      "Execute a command on the user's system in a separate session from the user console UI. Inputs and outputs are not visible directly to the user; they are managed by the application in its own personal terminal. While The App can provide ways to print command inputs and outputs as logs to the user terminal session, this is not the standard method of communication with the user. All commands are handled independently from user terminal session and are not connected to the user's console.",
     parameters: {
       type: "object",
       properties: {
