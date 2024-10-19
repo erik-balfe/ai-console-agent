@@ -1,4 +1,3 @@
-
 import chalk from "chalk";
 import { config } from "dotenv";
 import { APIError } from "openai";
@@ -10,8 +9,7 @@ import { loadConfig, saveConfig } from "./utils/config";
 import { getOrPromptForAPIKey } from "./utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "./utils/logger";
 
-import { Database, initializeDatabase, printDatabaseContents, getAllConversations } from "./utils/database";
-
+import { initializeDatabase, printDatabaseContents } from "./utils/database";
 
 config();
 
@@ -19,6 +17,7 @@ async function main() {
   const db = await initializeDatabase();
   logger.info("Database initialized successfully");
   await printDatabaseContents(db);
+  const startTime = Date.now();
 
   try {
     const { input, resetKey, showHelp, setLogLevel, getLogLevel } = parseArguments(Bun.argv);

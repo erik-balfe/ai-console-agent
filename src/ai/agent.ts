@@ -12,7 +12,7 @@ import {
 import { askUserTool } from "../tools/askUser";
 import { executeCommandTool } from "../tools/executeCommand";
 import { TmuxWrapper } from "../tools/TmuxWrapper";
-import { addConversation, getRelevantContext } from "../utils/chatHistory";
+import { addConversation, getRelevantContext, MessageRoles } from "../utils/chatHistory";
 import { loadConfig } from "../utils/config";
 import {
   Database,
@@ -164,11 +164,15 @@ export async function runAgent(input: string, db: Database) {
     ];
 
     const relevantContext = await getRelevantContext(input);
-    messages.push({
-      role: "system",
-      content: "Relevant context from previous conversations:\n" + relevantContext.join("\n"),
-    });
-
+    if (relevantContext.length > 0) {
+      messages.push({
+        role: "system",
+        content: "Relevant context from previous conversations:\n" + relevantContext.join("\n\n"),
+      });
+      logger.debug(`Added ${relevantContext.length} relevant context items to system message`);
+    } else {
+      logger.debug("No relevant context found for the current query");
+    }
     const taskMessageContent = "Here is the user task description:\n\n" + input;
 
     const tools = [executeCommandTool, askUserTool];
@@ -201,6 +205,7 @@ export async function runAgent(input: string, db: Database) {
             stepNumber,
             responseContent,
             stepExecutionTime,
+            MessageRoles.AGENT,
           );
 
           logger.debug("stepOutputRaw:", JSON.stringify(stepOutput, getCircularReplacer(), 2));

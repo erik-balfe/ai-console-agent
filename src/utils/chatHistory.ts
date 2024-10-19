@@ -1,9 +1,17 @@
-import { VectorStoreIndex } from "llamaindex";
-import { createDocumentFromConversation, Database, insertConversation, insertMessage } from "./database";
+import { Database, insertConversation, insertMessage, updateConversationTotalTime } from "./database";
 import { logger } from "./logger";
-import { createOrUpdateIndex, retrieveRelevantNodes } from "./vectorStore";
+import {
+  addConversation as addConversationToVectorStore,
+  getRelevantContext as getRelevantContextFromVectorStore,
+} from "./vectorStore";
 
-let vectorStoreIndex: VectorStoreIndex | null = null;
+export const MessageRoles = {
+  USER: "user",
+  AGENT: "agent",
+  SYSTEM: "system",
+} as const;
+
+export type MessageRole = (typeof MessageRoles)[keyof typeof MessageRoles];
 
 export async function addConversation(
   db: Database,
@@ -11,11 +19,11 @@ export async function addConversation(
 ): Promise<void> {
   try {
     const conversationId = await insertConversation(db, conversation.query);
-    await insertMessage(db, conversationId, conversation.query, true);
-    await insertMessage(db, conversationId, conversation.response, false);
+    await insertMessage(db, conversationId, conversation.query, MessageRoles.USER);
+    await insertMessage(db, conversationId, conversation.response, MessageRoles.AGENT);
+    await updateConversationTotalTime(db, conversationId, conversation.totalTime);
 
-    const document = await createDocumentFromConversation(db, conversationId);
-    vectorStoreIndex = await createOrUpdateIndex([document]);
+    await addConversationToVectorStore(db, conversation);
   } catch (error) {
     logger.error("Error adding conversation:", error);
     throw error;
@@ -23,14 +31,8 @@ export async function addConversation(
 }
 
 export async function getRelevantContext(query: string): Promise<string[]> {
-  if (!vectorStoreIndex) {
-    logger.warn("Vector store index not initialized");
-    return [];
-  }
-
   try {
-    const relevantInfo = await retrieveRelevantNodes(vectorStoreIndex, query);
-    return relevantInfo.split("\n\n");
+    return await getRelevantContextFromVectorStore(query);
   } catch (error) {
     logger.error("Error retrieving relevant context:", error);
     return [];

@@ -9,14 +9,28 @@ const DB_PATH = path.join(
   "chat_history.db",
 );
 
+export interface AgentStep {
+  id: number;
+  conversation_id: number;
+  step_number: number;
+  content: string;
+  timestamp: number;
+  execution_time: number;
+  role: string;
+}
+
 export async function initializeDatabase(): Promise<Database> {
   const db = new Database(DB_PATH, { create: true });
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS db_version (
+      version INTEGER PRIMARY KEY
+    );
+
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_query TEXT NOT NULL,
-      timestamp INTEGER NOT NULL,
+      timestamp BIGINT NOT NULL,
       user_feedback TEXT,
       total_time INTEGER
     );
@@ -26,8 +40,9 @@ export async function initializeDatabase(): Promise<Database> {
       conversation_id INTEGER NOT NULL,
       step_number INTEGER NOT NULL,
       content TEXT NOT NULL,
-      timestamp INTEGER NOT NULL,
+      timestamp BIGINT NOT NULL,
       execution_time INTEGER NOT NULL,
+      role TEXT NOT NULL,
       FOREIGN KEY (conversation_id) REFERENCES conversations (id)
     );
 
@@ -37,11 +52,13 @@ export async function initializeDatabase(): Promise<Database> {
       tool_name TEXT NOT NULL,
       input_params TEXT NOT NULL,
       output TEXT NOT NULL,
-      timestamp INTEGER NOT NULL,
+      timestamp BIGINT NOT NULL,
       execution_time INTEGER NOT NULL,
       FOREIGN KEY (step_id) REFERENCES agent_steps (id)
     );
   `);
+
+  await migrateDatabase(db);
 
   return db;
 }
@@ -89,12 +106,15 @@ export async function insertAgentStep(
   stepNumber: number,
   content: string,
   executionTime: number,
+  role: string,
 ): Promise<number> {
-  logger.debug(`Inserting agent step: ${stepNumber} for conversation ${conversationId}`);
+  logger.debug(
+    `Inserting agent step: ${stepNumber} for conversation ${conversationId}, execution time: ${executionTime}ms`,
+  );
   const timestamp = Date.now();
   const result = db.run(
-    "INSERT INTO agent_steps (conversation_id, step_number, content, timestamp, execution_time) VALUES (?, ?, ?, ?, ?)",
-    [conversationId, stepNumber, content, timestamp, executionTime],
+    "INSERT INTO agent_steps (conversation_id, step_number, content, timestamp, execution_time, role) VALUES (?, ?, ?, ?, ?, ?)",
+    [conversationId, stepNumber, content, timestamp, executionTime, role],
   );
   return Number(result.lastInsertRowid);
 }
@@ -152,10 +172,10 @@ export async function createDocumentFromConversation(
   }
 
   const steps = db
-    .query("SELECT content, is_user FROM agent_steps WHERE conversation_id = ? ORDER BY timestamp")
-    .all(conversationId) as { content: string; is_user: number }[];
+    .query("SELECT content, role FROM agent_steps WHERE conversation_id = ? ORDER BY timestamp")
+    .all(conversationId) as { content: string; role: string }[];
 
-  const text = steps.map((step) => `${step.is_user ? "User" : "AI"}: ${step.content}`).join("\n");
+  const text = steps.map((step) => `${step.role}: ${step.content}`).join("\n");
 
   return new Document({
     text,
@@ -182,14 +202,58 @@ export async function insertMessage(
   db: Database,
   conversationId: number,
   content: string,
-  isUser: boolean,
+  role: string,
 ): Promise<number> {
   const timestamp = Date.now();
   const result = db.run(
-    "INSERT INTO agent_steps (conversation_id, step_number, content, timestamp, execution_time, is_user) VALUES (?, ?, ?, ?, ?, ?)",
-    [conversationId, 0, content, timestamp, 0, isUser ? 1 : 0],
+    "INSERT INTO agent_steps (conversation_id, step_number, content, timestamp, execution_time, role) VALUES (?, ?, ?, ?, ?, ?)",
+    [conversationId, 0, content, timestamp, 0, role],
   );
   return Number(result.lastInsertRowid);
 }
 
 export { Database };
+
+export async function migrateDatabase(db: Database): Promise<void> {
+  try {
+    const currentVersion = db.query("SELECT version FROM db_version").get() as
+      | { version: number }
+      | undefined;
+
+    if (!currentVersion) {
+      // New database, set to latest version
+      db.run("INSERT INTO db_version (version) VALUES (?)", [1]);
+      logger.info("Initialized new database with version 1");
+      return;
+    }
+
+    if (currentVersion.version < 1) {
+      logger.info("Migrating database to version 1");
+      db.exec(`
+        ALTER TABLE conversations RENAME COLUMN timestamp TO old_timestamp;
+        ALTER TABLE conversations ADD COLUMN timestamp BIGINT;
+        UPDATE conversations SET timestamp = old_timestamp * 1000;
+        ALTER TABLE conversations DROP COLUMN old_timestamp;
+
+        ALTER TABLE agent_steps RENAME COLUMN timestamp TO old_timestamp;
+        ALTER TABLE agent_steps ADD COLUMN timestamp BIGINT;
+        UPDATE agent_steps SET timestamp = old_timestamp * 1000;
+        ALTER TABLE agent_steps DROP COLUMN old_timestamp;
+
+        ALTER TABLE tool_uses RENAME COLUMN timestamp TO old_timestamp;
+        ALTER TABLE tool_uses ADD COLUMN timestamp BIGINT;
+        UPDATE tool_uses SET timestamp = old_timestamp * 1000;
+        ALTER TABLE tool_uses DROP COLUMN old_timestamp;
+      `);
+
+      db.run("UPDATE db_version SET version = 1");
+      logger.info("Database successfully migrated to version 1");
+    }
+
+    // Add future migrations here
+    // if (currentVersion.version < 2) { ... }
+  } catch (error) {
+    logger.error("Error during database migration:", error);
+    throw error;
+  }
+}

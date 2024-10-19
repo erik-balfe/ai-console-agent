@@ -1,60 +1,68 @@
-import { Document, MetadataMode, VectorStoreIndex, storageContextFromDefaults } from "llamaindex";
+import { MetadataMode, storageContextFromDefaults, VectorStoreIndex } from "llamaindex";
 import path from "path";
 import { CONFIG_DIR_PATH } from "../constants";
+import { createDocumentFromConversation, Database, insertConversation } from "./database";
 import { logger } from "./logger";
 
 const VECTOR_STORE_PATH = path.join(CONFIG_DIR_PATH, "vector_store");
-const SIMILARITY_TOP_K = 5;
 
-export async function createOrUpdateIndex(documents: Document[]): Promise<VectorStoreIndex> {
+let vectorStoreIndex: VectorStoreIndex | null = null;
+
+async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
   try {
-    logger.debug(`Creating/updating index with ${documents.length} documents`);
-    const storageContext = await storageContextFromDefaults({
-      persistDir: VECTOR_STORE_PATH,
-    });
-
+    const storageContext = await storageContextFromDefaults({ persistDir: VECTOR_STORE_PATH });
     let index: VectorStoreIndex;
+
     try {
       logger.info("Attempting to load existing index");
       index = await VectorStoreIndex.init({ storageContext });
       logger.info("Existing index loaded successfully");
-      // If successful, insert new documents
-      for (const doc of documents) {
-        logger.debug(`Inserting document: ${doc.id_}`);
-        await index.insert(doc);
-      }
     } catch (error) {
       logger.info("Existing index not found. Creating new index");
-      index = await VectorStoreIndex.fromDocuments(documents, { storageContext });
+      index = await VectorStoreIndex.fromDocuments([], { storageContext });
       logger.info("New index created successfully");
     }
 
-    // Persist the index
-    // Currently disabled to test if it is persisted automatically
-    // logger.debug("Persisting index");
-    // await index.storage_context.persist(VECTOR_STORE_PATH);
-    logger.info("Index persisted successfully");
     return index;
   } catch (error) {
-    logger.error("Error creating or updating index:", error);
+    logger.error("Error initializing vector store index:", error);
     throw error;
   }
 }
 
-export async function retrieveRelevantNodes(index: VectorStoreIndex, query: string): Promise<string> {
-  logger.debug(`Retrieving relevant nodes for query: ${query}`);
-  const retriever = index.asRetriever({ similarityTopK: SIMILARITY_TOP_K });
-  const nodesWithScore = await retriever.retrieve(query);
-  logger.debug("Retrieved nodes with scores:", JSON.stringify(nodesWithScore, null, 2));
+export async function addConversation(
+  db: Database,
+  conversation: { query: string; response: string; totalTime: number },
+): Promise<void> {
+  try {
+    const conversationId = await insertConversation(db, conversation.query);
+    const document = await createDocumentFromConversation(db, conversationId);
 
-  const relevantInfo = nodesWithScore
-    .map((nodeWithScore) => nodeWithScore.node.getContent(MetadataMode.NONE))
-    .join("\n\n");
-  logger.debug("Relevant information:", relevantInfo);
-  return relevantInfo;
+    if (!vectorStoreIndex) {
+      vectorStoreIndex = await initializeVectorStoreIndex();
+    }
+
+    await vectorStoreIndex.insert(document);
+    // The index is automatically persisted due to the storageContext
+    logger.info("Vector store index updated and persisted");
+  } catch (error) {
+    logger.error("Error adding conversation:", error);
+    throw error;
+  }
 }
 
-export function createQueryEngine(index: VectorStoreIndex) {
-  logger.debug("Creating query engine");
-  return index.asQueryEngine({ similarityTopK: SIMILARITY_TOP_K });
+export async function getRelevantContext(query: string): Promise<string[]> {
+  if (!vectorStoreIndex) {
+    vectorStoreIndex = await initializeVectorStoreIndex();
+  }
+
+  try {
+    const retriever = vectorStoreIndex.asRetriever({ similarityTopK: 5 });
+    const nodes = await retriever.retrieve(query);
+    logger.debug(`Retrieved ${nodes.length} relevant nodes`);
+    return nodes.map((node) => node.node.getContent(MetadataMode.NONE));
+  } catch (error) {
+    logger.error("Error retrieving relevant context:", error);
+    return [];
+  }
 }
