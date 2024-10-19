@@ -14,8 +14,15 @@ import { executeCommandTool } from "../tools/executeCommand";
 import { TmuxWrapper } from "../tools/TmuxWrapper";
 import { addConversation, getRelevantContext } from "../utils/chatHistory";
 import { loadConfig } from "../utils/config";
-import { Database } from "../utils/database";
+import {
+  Database,
+  insertAgentStep,
+  insertConversation,
+  insertToolUse,
+  updateConversationTotalTime,
+} from "../utils/database";
 import { formatUserMessage } from "../utils/formatting";
+import { getCircularReplacer } from "../utils/getCircularReplacer";
 import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "../utils/logger";
 import { parseAgentResponse } from "../utils/parseAgentResponse";
@@ -26,6 +33,8 @@ const informUserTag = "inform_user";
 const AGENT_CONTEXT_ALLOCATION = "60000"; // number of tokens
 
 export async function runAgent(input: string, db: Database) {
+  const startTime = Date.now();
+  logger.info(`Starting agent run with input: ${input}`);
   const runDir = initializeRun(input);
   const apiKey = await getOrPromptForAPIKey();
   if (!apiKey) {
@@ -171,6 +180,8 @@ export async function runAgent(input: string, db: Database) {
       chatHistory: messages,
     });
 
+    const conversationId = await insertConversation(db, input);
+
     let responseContent = "";
     let totalUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
     let stepNumber = 0;
@@ -178,9 +189,31 @@ export async function runAgent(input: string, db: Database) {
     try {
       const task = agent.createTask(taskMessageContent);
       for await (const stepOutput of task as any) {
+        const stepStartTime = Date.now();
+
         try {
           const parsedResponse = parseAgentResponse(stepOutput);
           responseContent = parsedResponse.content;
+          const stepExecutionTime = Date.now() - stepStartTime;
+          const stepId = await insertAgentStep(
+            db,
+            conversationId,
+            stepNumber,
+            responseContent,
+            stepExecutionTime,
+          );
+
+          logger.debug("stepOutputRaw:", JSON.stringify(stepOutput, getCircularReplacer(), 2));
+          if (stepOutput.toolCall) {
+            const toolCall = stepOutput.toolCall;
+            const toolStartTime = Date.now();
+            const toolName = toolCall.name;
+            const inputParams = JSON.stringify(toolCall.input);
+            const output = JSON.stringify(stepOutput.toolResult?.output);
+            const toolExecutionTime = Date.now() - toolStartTime;
+            await insertToolUse(db, stepId, toolName, inputParams, output, toolExecutionTime);
+          }
+
           const informUserMatch = responseContent.match(
             new RegExp(`<${informUserTag}>([\s\S]*?)</${informUserTag}>`, "g"),
           );
@@ -196,7 +229,7 @@ export async function runAgent(input: string, db: Database) {
           totalUsage.cachedTokens += parsedResponse.usage.prompt_tokens_details?.cached_tokens || 0;
 
           responseContent && logger.debug(`Agent step ${stepNumber} output: ${responseContent}`);
-          stepNumber++;
+          logger.debug(`Step ${stepNumber} completed. Execution time: ${stepExecutionTime}ms`);
         } catch (error) {
           if (error instanceof Error && error.message === "<input_aborted_by_user />") {
             logger.info("Task aborted by user.");
@@ -204,6 +237,8 @@ export async function runAgent(input: string, db: Database) {
           }
           logger.error(`Error in agent execution: ${error}`);
           throw error;
+        } finally {
+          stepNumber++;
         }
       }
     } catch (error) {
@@ -214,13 +249,19 @@ export async function runAgent(input: string, db: Database) {
       logger.error(`Error in agent execution: ${error}`);
       return "An error occurred while processing your request. Please ensure you're providing both a command and an instruction.";
     } finally {
+      const totalTime = Date.now() - startTime;
+      await updateConversationTotalTime(db, conversationId, totalTime);
       logger.info(`Token usage: ${JSON.stringify(totalUsage)}`);
       await TmuxWrapper.cleanup();
     }
 
     const finalResultMatch = responseContent.match(/<final_result>([\s\S]*?)<\/final_result>/i);
     const finalResponse = finalResultMatch ? finalResultMatch[1].trim() : responseContent;
-    await addConversation(db, { query: input, response: finalResponse });
+    const totalTime = Date.now() - startTime;
+    logger.info(`Agent run completed. Total time: ${totalTime}ms`);
+    logger.info(`Final response: ${finalResponse}`);
+
+    await addConversation(db, { query: input, response: finalResponse, totalTime });
     if (finalResultMatch) {
       return finalResultMatch[1].trim();
     } else {

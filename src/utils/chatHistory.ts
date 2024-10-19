@@ -1,13 +1,13 @@
 import { VectorStoreIndex } from "llamaindex";
 import { createDocumentFromConversation, Database, insertConversation, insertMessage } from "./database";
 import { logger } from "./logger";
-import { createOrUpdateIndex, createQueryEngine } from "./vectorStore";
+import { createOrUpdateIndex, retrieveRelevantNodes } from "./vectorStore";
 
 let vectorStoreIndex: VectorStoreIndex | null = null;
 
 export async function addConversation(
   db: Database,
-  conversation: { query: string; response: string },
+  conversation: { query: string; response: string; totalTime: number },
 ): Promise<void> {
   try {
     const conversationId = await insertConversation(db, conversation.query);
@@ -28,8 +28,11 @@ export async function getRelevantContext(query: string): Promise<string[]> {
     return [];
   }
 
-  const queryEngine = createQueryEngine(vectorStoreIndex);
-  const response = await queryEngine.query(query);
-
-  return response.sourceNodes.map((node) => node.node.getContent());
+  try {
+    const relevantInfo = await retrieveRelevantNodes(vectorStoreIndex, query);
+    return relevantInfo.split("\n\n");
+  } catch (error) {
+    logger.error("Error retrieving relevant context:", error);
+    return [];
+  }
 }
