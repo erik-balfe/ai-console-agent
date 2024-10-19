@@ -12,7 +12,9 @@ import {
 import { askUserTool } from "../tools/askUser";
 import { executeCommandTool } from "../tools/executeCommand";
 import { TmuxWrapper } from "../tools/TmuxWrapper";
+import { addConversation, getRelevantContext } from "../utils/chatHistory";
 import { loadConfig } from "../utils/config";
+import { Database } from "../utils/database";
 import { formatUserMessage } from "../utils/formatting";
 import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "../utils/logger";
@@ -23,7 +25,7 @@ const informUserTag = "inform_user";
 
 const AGENT_CONTEXT_ALLOCATION = "60000"; // number of tokens
 
-export async function runAgent(input: string) {
+export async function runAgent(input: string, db: Database) {
   const runDir = initializeRun(input);
   const apiKey = await getOrPromptForAPIKey();
   if (!apiKey) {
@@ -151,6 +153,13 @@ export async function runAgent(input: string) {
 `.trim(),
       },
     ];
+
+    const relevantContext = await getRelevantContext(input);
+    messages.push({
+      role: "system",
+      content: "Relevant context from previous conversations:\n" + relevantContext.join("\n"),
+    });
+
     const taskMessageContent = "Here is the user task description:\n\n" + input;
 
     const tools = [executeCommandTool, askUserTool];
@@ -210,6 +219,8 @@ export async function runAgent(input: string) {
     }
 
     const finalResultMatch = responseContent.match(/<final_result>([\s\S]*?)<\/final_result>/i);
+    const finalResponse = finalResultMatch ? finalResultMatch[1].trim() : responseContent;
+    await addConversation(db, { query: input, response: finalResponse });
     if (finalResultMatch) {
       return finalResultMatch[1].trim();
     } else {

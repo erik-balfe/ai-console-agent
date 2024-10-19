@@ -6,12 +6,16 @@ import { parseArguments, printHelp } from "./cli/interface";
 import { MAX_INPUT_LENGTH } from "./constants";
 import { deleteAPIKey } from "./utils/apiKeyManager";
 import { loadConfig, saveConfig } from "./utils/config";
+import { initializeDatabase } from "./utils/database";
 import { getOrPromptForAPIKey } from "./utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "./utils/logger";
 
 config();
 
 async function main() {
+  const db = await initializeDatabase();
+  logger.info("Database initialized successfully");
+
   try {
     const { input, resetKey, showHelp, setLogLevel, getLogLevel } = parseArguments(Bun.argv);
 
@@ -65,7 +69,7 @@ async function main() {
     }
 
     try {
-      const agentResponse = await runAgent(input);
+      const agentResponse = await runAgent(input, db);
       if (agentResponse === "Task aborted by user.") {
         console.log(chalk.yellow(agentResponse));
       } else {
@@ -90,6 +94,10 @@ async function main() {
   } catch (error) {
     console.error(chalk.red("Error:"), error.message);
     printHelp();
+  } finally {
+    if (db) {
+      db.close();
+    }
   }
 }
 
