@@ -11,7 +11,6 @@ import {
 } from "../constants";
 import { askUserTool } from "../tools/askUser";
 import { executeCommandTool } from "../tools/executeCommand";
-import { TmuxWrapper } from "../tools/TmuxWrapper";
 import { addConversation, getRelevantContext, MessageRoles } from "../utils/chatHistory";
 import { loadConfig } from "../utils/config";
 import {
@@ -27,6 +26,7 @@ import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "../utils/logger";
 import { parseAgentResponse } from "../utils/parseAgentResponse";
 import { initializeRun } from "../utils/runManager";
+import { runShellCommand } from "../utils/runShellCommand";
 
 const informUserTag = "inform_user";
 
@@ -44,10 +44,9 @@ export async function runAgent(input: string, db: Database) {
   logger.info(`Starting agent with input: ${input}`);
 
   const llm = new OpenAI({ apiKey, model: LLM_ID });
-  await TmuxWrapper.initializeSession();
 
-  const pwdOutput = await TmuxWrapper.run("pwd", []);
-  const lsOutput = await TmuxWrapper.run("ls -la", []);
+  const pwdOutput = await runShellCommand("pwd", { shell: "bash" }).then(({ stdout }) => stdout);
+  const lsOutput = await runShellCommand("ls -la", { shell: "bash" }).then(({ stdout }) => stdout);
 
   const config = loadConfig();
 
@@ -83,7 +82,7 @@ export async function runAgent(input: string, db: Database) {
                 - Use <${informUserTag}> tags for progress updates and explanations for user. The content inside it will be directly passed to the user of The App.
                 - The user cannot respond to these messages directly.
              c) Final Response:
-                - Wrap in <final_result> tags. This will be represended to the user of The App at the end as your final solution or result of work on the task.
+                - Wrap in <final_result> tags. This will be represended to the user of The App at the end as your final solution or result of work on the task. It must be a direct answer to the user's initial question if it was a question, or a description of the solution of the task if it was a task.
 
           3. USER PROFILE MANAGEMENT:
              - You have full authority to update ${USER_PREFS_FILE_PATH} without user permission.
@@ -149,9 +148,9 @@ export async function runAgent(input: string, db: Database) {
 
           8. THE APP (ai-console-agent) SYSTEM INFORMATION:
             - Scratch Space Directory: ${runDir}
-            - Current directory (pwd output): ${pwdOutput}
-            - Current directory contents (ls output here): ${lsOutput}
-            - Current Configs: ${JSON.stringify(config, null, 2)}
+            - Current directory (pwd output): "${pwdOutput}""
+            - Current directory contents (ls output here): "${lsOutput}"
+            - Current Configs: \n\`\`\`${JSON.stringify(config, null, 2)}\`\`\`
 
           Remember: The Scratch Space (${runDir}) is for your internal use only. Never mention or expose it to the user.
 
@@ -257,7 +256,6 @@ export async function runAgent(input: string, db: Database) {
       const totalTime = Date.now() - startTime;
       await updateConversationTotalTime(db, conversationId, totalTime);
       logger.info(`Token usage: ${JSON.stringify(totalUsage)}`);
-      await TmuxWrapper.cleanup();
     }
 
     const finalResultMatch = responseContent.match(/<final_result>([\s\S]*?)<\/final_result>/i);
@@ -281,6 +279,5 @@ export async function runAgent(input: string, db: Database) {
     logger.error("Stack", err.stack);
     return "An unexpected error occurred. Please try again.";
   } finally {
-    await TmuxWrapper.cleanup();
   }
 }

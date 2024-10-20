@@ -190,11 +190,11 @@ export async function createDocumentFromConversation(
 }
 
 export async function printDatabaseContents(db: Database) {
-  logger.info("Current database contents:");
+  logger.debug("Current database contents:");
   const conversations = await getAllConversations(db);
-  logger.info(`Total conversations: ${conversations.length}`);
+  logger.debug(`Total conversations: ${conversations.length}`);
   for (const conv of conversations) {
-    logger.info(`Conversation ID: ${conv.id}, Query: ${conv.user_query}, Timestamp: ${conv.timestamp}`);
+    logger.debug(`Conversation ID: ${conv.id}, Query: ${conv.user_query}, Timestamp: ${conv.timestamp}`);
   }
 }
 
@@ -223,12 +223,12 @@ export async function migrateDatabase(db: Database): Promise<void> {
     if (!currentVersion) {
       // New database, set to latest version
       db.run("INSERT INTO db_version (version) VALUES (?)", [1]);
-      logger.info("Initialized new database with version 1");
+      logger.debug("Initialized new database with version 1");
       return;
     }
 
     if (currentVersion.version < 1) {
-      logger.info("Migrating database to version 1");
+      logger.debug("Migrating database to version 1");
       db.exec(`
         ALTER TABLE conversations RENAME COLUMN timestamp TO old_timestamp;
         ALTER TABLE conversations ADD COLUMN timestamp BIGINT;
@@ -247,7 +247,7 @@ export async function migrateDatabase(db: Database): Promise<void> {
       `);
 
       db.run("UPDATE db_version SET version = 1");
-      logger.info("Database successfully migrated to version 1");
+      logger.debug("Database successfully migrated to version 1");
     }
 
     // Add future migrations here

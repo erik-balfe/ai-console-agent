@@ -4,23 +4,10 @@ import { displayOptionsAndGetInput } from "../cli/interface";
 import { logger } from "../utils/logger";
 import { getCurrentRunId } from "../utils/runManager";
 import { runShellCommand } from "../utils/runShellCommand";
-import { TmuxWrapper } from "./TmuxWrapper";
 
 export const executeCommandTool = new FunctionTool(
-  async (params: {
-    command: string;
-    requireConfirmation: boolean;
-    explanation: string;
-    interactions: string[];
-    useTmux: boolean;
-  }) => {
-    const {
-      command,
-      requireConfirmation = false,
-      explanation = "No explanation provided",
-      interactions = [],
-      useTmux = false,
-    } = params;
+  async (params: { command: string; requireConfirmation: boolean; explanation: string }) => {
+    const { command, requireConfirmation = false, explanation = "No explanation provided" } = params;
 
     const runId = getCurrentRunId();
     if (!runId) {
@@ -37,20 +24,8 @@ export const executeCommandTool = new FunctionTool(
 
     try {
       logger.info(`Executing command: ${command}`);
-      let result: string;
-
-      if (useTmux) {
-        result = await TmuxWrapper.run(command, interactions);
-      } else {
-        try {
-          const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
-          result = JSON.stringify({ stdout, stderr });
-        } catch (error) {
-          logger.error(`Error in tool executing command: ${error}`);
-          return { stderr: error instanceof Error ? error.message : String(error) };
-        }
-      }
-
+      const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
+      const result = JSON.stringify({ stdout, stderr });
       logger.debug(`Command result: ${result}`);
       return result;
     } catch (error: unknown) {
@@ -61,7 +36,7 @@ export const executeCommandTool = new FunctionTool(
   {
     name: "executeCommand",
     description:
-      "Execute a command on the user's system in a separate session from the user console UI. Inputs and outputs are not visible directly to the user; they are managed by the application in its own personal terminal. While The App can provide ways to print command inputs and outputs as logs to the user terminal session, this is not the standard method of communication with the user. All commands are handled independently from user terminal session and are not connected to the user's console.",
+      "Execute a command on the user's system. The command is run in a separate process, and the output is captured and returned. Commands that suppose to be interactive are not supported and must be strongly avoided.",
     parameters: {
       type: "object",
       properties: {
@@ -78,17 +53,6 @@ export const executeCommandTool = new FunctionTool(
           type: "string",
           description: "Explanation of what the command does, shown to the user before confirmation",
           default: "No explanation provided",
-        },
-        interactions: {
-          type: "array",
-          items: { type: "string" },
-          description: "List of expected prompts and responses for interactive commands",
-          default: [],
-        },
-        useTmux: {
-          type: "boolean",
-          description: "If true, uses tmux for command execution, allowing for simple interactions",
-          default: false,
         },
       },
       required: ["command"],

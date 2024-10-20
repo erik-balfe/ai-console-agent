@@ -4,32 +4,6 @@ set -e
 
 PREFIX="[AI_CONSOLE_AGENT_INSTALLER]"
 
-install_tmux() {
-    echo "$PREFIX tmux is not installed. Attempting to install..."
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install tmux
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        if [ -f "/etc/debian_version" ]; then
-            sudo apt-get update && sudo apt-get install -y tmux
-        elif [ -f "/etc/fedora-release" ]; then
-            sudo dnf install -y tmux
-        else
-            echo "$PREFIX Unable to install tmux automatically. Please install tmux manually and run this script again."
-            exit 1
-        fi
-    else
-        echo "$PREFIX Unsupported operating system. Please install tmux manually and run this script again."
-        exit 1
-    fi
-}
-
-# Check if tmux is installed
-if ! command -v tmux &> /dev/null; then
-    install_tmux
-fi
-
-set -e
-
 # Download the latest release
 echo "$PREFIX Downloading the latest AI Console Agent..."
 curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
