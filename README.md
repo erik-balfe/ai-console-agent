@@ -152,6 +152,20 @@ The application now securely stores the OpenAI API key using the system's keycha
 
 AI Console Agent is in early development. While functional, it may have bugs or limitations. Use it at your own risk and always verify important operations.
 
+### Testing
+
+To run some specific tests:
+
+```sh
+bun test --test-name-pattern testName --timeout 30000
+```
+
+To run all tests:
+
+```sh
+bun test
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
