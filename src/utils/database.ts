@@ -48,13 +48,15 @@ export async function initializeDatabase(): Promise<Database> {
 
     CREATE TABLE IF NOT EXISTS tool_uses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,  // New column for conversation ID
       step_id INTEGER NOT NULL,
       tool_name TEXT NOT NULL,
       input_params TEXT NOT NULL,
       output TEXT NOT NULL,
       timestamp BIGINT NOT NULL,
       execution_time INTEGER NOT NULL,
-      FOREIGN KEY (step_id) REFERENCES agent_steps (id)
+      FOREIGN KEY (step_id) REFERENCES agent_steps (id),
+      FOREIGN KEY (conversation_id) REFERENCES conversations (id) // Enforce foreign key relationship
     );
   `);
 
@@ -118,19 +120,29 @@ export async function insertAgentStep(
   );
   return Number(result.lastInsertRowid);
 }
+export interface InsertToolUseParams {
+  conversationId: number;
+  stepId: number;
+  toolName: string;
+  inputParams: string;
+  output: string;
+  executionTime: number;
+  timestamp: number;
+}
 
 export async function insertToolUse(
   db: Database,
-  stepId: number,
+  conversationId: number,
+  stepId: string,
   toolName: string,
   inputParams: string,
   output: string,
   executionTime: number,
+  timestamp: number,
 ): Promise<number> {
-  const timestamp = Date.now();
   const result = db.run(
-    "INSERT INTO tool_uses (step_id, tool_name, input_params, output, timestamp, execution_time) VALUES (?, ?, ?, ?, ?, ?)",
-    [stepId, toolName, inputParams, output, timestamp, executionTime],
+    "INSERT INTO tool_uses (conversation_id, step_id, tool_name, input_params, output, timestamp, execution_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [conversationId, stepId, toolName, inputParams, output, timestamp, executionTime],
   );
   return Number(result.lastInsertRowid);
 }

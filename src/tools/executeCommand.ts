@@ -1,42 +1,45 @@
 import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
 import { displayOptionsAndGetInput } from "../cli/interface";
-import { logger } from "../utils/logger";
-import { getCurrentRunId } from "../utils/runManager";
+import { Database } from "../utils/database";
 import { runShellCommand } from "../utils/runShellCommand";
+import { createToolMiddleware } from "./toolMiddleware";
 
-export const executeCommandTool = new FunctionTool(
-  async (params: { command: string; requireConfirmation: boolean; explanation: string }) => {
-    const { command, requireConfirmation = false, explanation = "No explanation provided" } = params;
+interface ExecuteCommandParams {
+  command: string;
+  requireConfirmation: boolean;
+  explanation: string;
+}
 
-    const runId = getCurrentRunId();
-    if (!runId) {
-      throw new Error("No active run ID found");
+const executeCommandCallback = async (params: ExecuteCommandParams): Promise<string> => {
+  const { command, requireConfirmation = false, explanation = "No explanation provided" } = params;
+
+  if (requireConfirmation) {
+    const confirmationQuestion = chalk.blue(
+      `\n\nDo you want to execute this command:\n\n>${command}\n\n${explanation}\n\n`,
+    );
+    const userChoice = await displayOptionsAndGetInput(confirmationQuestion, ["Yes", "No"]);
+    if (userChoice === "No") {
+      return "Command execution cancelled by user.";
     }
+  }
 
-    if (requireConfirmation) {
-      const confirmationQuestion = `\n\nDo you want to execute this command:\n\n${chalk.blue(command)}\n\n${explanation}`;
-      const userChoice = await displayOptionsAndGetInput(confirmationQuestion, ["Yes", "No"]);
-      if (userChoice === "No") {
-        return "Command execution cancelled by user.";
-      }
-    }
+  try {
+    const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
+    return JSON.stringify({ stdout, stderr });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return `Failed to execute command: ${errorMessage}`;
+  }
+};
 
-    try {
-      logger.info(`Executing command: ${command}`);
-      const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
-      const result = JSON.stringify({ stdout, stderr });
-      logger.debug(`Command result: ${result}`);
-      return result;
-    } catch (error: unknown) {
-      logger.error(`Failed to execute command: ${error instanceof Error ? error.message : String(error)}`);
-      return `Failed to execute command: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  },
-  {
+export function createExecuteCommandTool(db: Database, conversationId: number) {
+  const wrappedCallback = createToolMiddleware(db, conversationId)("executeCommand", executeCommandCallback);
+
+  return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
     name: "executeCommand",
     description:
-      "Execute a command on the user's system. The command is run in a separate process, and the output is captured and returned. Commands that suppose to be interactive are not supported and must be strongly avoided.",
+      "Execute a command on the user's system. The command is run in a separate process, and the output is captured and returned. Commands that suppose to be interactive (like usual 'git commit') are not supported and must be strongly avoided.",
     parameters: {
       type: "object",
       properties: {
@@ -57,5 +60,5 @@ export const executeCommandTool = new FunctionTool(
       },
       required: ["command"],
     },
-  },
-);
+  });
+}
