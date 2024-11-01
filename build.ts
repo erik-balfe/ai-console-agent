@@ -68,7 +68,6 @@ async function build() {
 
   console.log(`Build completed successfully. Executable: ${OUTPUT_FILE}`);
 
-  // Log file information
   try {
     const stats = fs.statSync(OUTPUT_FILE);
     console.log(`File size: ${stats.size} bytes`);
@@ -81,10 +80,22 @@ async function build() {
   }
 }
 
+const getBunVersionFromPackageJson = () => {
+  const packageJsonPath = path.join(PROJECT_ROOT, "package.json");
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+
+  if (!packageJson?.engines?.bun) {
+    throw new Error("Bun version is not specified in package.json");
+  }
+
+  return packageJson.engines.bun;
+};
+
 function checkBunVersion() {
+  const requiredVersion = getBunVersionFromPackageJson();
   const result = spawnSync("bun", ["--version"], { encoding: "utf8" });
   const version = result.stdout.trim();
-  const requiredVersion = "1.1.30";
 
   if (version !== requiredVersion) {
     console.warn(
