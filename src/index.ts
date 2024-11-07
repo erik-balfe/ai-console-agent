@@ -16,7 +16,7 @@ config();
 async function main() {
   const db = await initializeDatabase();
   logger.info("Database initialized successfully");
-  await printDatabaseContents(db);
+  printDatabaseContents(db);
   const startTime = Date.now();
 
   try {
@@ -75,14 +75,7 @@ async function main() {
       const agentResponse = await runAgent(input, db);
       if (agentResponse === "Task aborted by user.") {
         console.log(chalk.yellow(agentResponse));
-      } else {
-        console.log(
-          chalk.green(
-            "\n\nFinal response:\n------------------\n\n",
-            agentResponse,
-            "\n\n------------------\n",
-          ),
-        );
+        return;
       }
     } catch (error) {
       if (error instanceof APIError) {

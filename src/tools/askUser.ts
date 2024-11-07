@@ -29,7 +29,7 @@ const askUserCallback = async (params: AskUserParams): Promise<string> => {
     if (error instanceof Error) {
       if (error.message === "<input_aborted_by_user />") {
         logger.info(`AskUser choice aborted by user`);
-        throw error;
+        return "User chose to abort the task. It is a sign to end the conversation. No further actions are needed.";
       }
     } else {
       logger.error("Unknown error during user interaction");

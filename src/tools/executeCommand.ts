@@ -43,6 +43,11 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
     parameters: {
       type: "object",
       properties: {
+        explanation: {
+          type: "string",
+          description: "Command name and args in free form with explanation of what the command does, shown to the user before confirmation, intention of the commoand and expected output (at least type or shape of output expected)",
+          default: "No explanation provided",
+        },
         command: {
           type: "string",
           description: "The command to execute",
@@ -51,11 +56,6 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
           type: "boolean",
           description: "If true, requires explicit user confirmation before executing the command.",
           default: false,
-        },
-        explanation: {
-          type: "string",
-          description: "Explanation of what the command does, shown to the user before confirmation",
-          default: "No explanation provided",
         },
       },
       required: ["command"],

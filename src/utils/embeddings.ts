@@ -1,9 +1,13 @@
-import { Document, OpenAIEmbedding } from "llamaindex";
+import { OpenAIEmbedding } from "llamaindex";
 import { getAPIKey } from "./apiKeyManager";
 import { logger } from "./logger";
 
 // const embeddingModelId = ALL_OPENAI_EMBEDDING_MODELS["text-embedding-3-small"];
 const embeddingModelId = "text-embedding-3-small";
+
+// it is currently not in use.
+// Its supposed to be stored in context of agent run.
+// So embedding model may be not hardcoded but configurable by user.
 
 let embeddingModel: OpenAIEmbedding | null = null;
 
@@ -14,19 +18,4 @@ export async function initializeEmbeddingModel(): Promise<void> {
   }
   embeddingModel = new OpenAIEmbedding({ apiKey, model: embeddingModelId });
   logger.info("Embedding model initialized successfully");
-}
-
-export async function generateEmbedding(text: string): Promise<number[]> {
-  if (!embeddingModel) {
-    await initializeEmbeddingModel();
-  }
-
-  try {
-    const document = new Document({ text });
-    const embedding = await embeddingModel!.getTextEmbedding(text);
-    return embedding;
-  } catch (error) {
-    logger.error("Error generating embedding:", error);
-    throw error;
-  }
 }
