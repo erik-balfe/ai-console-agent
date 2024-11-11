@@ -66,6 +66,8 @@ interface AIModelConfig {
   supportsVision: boolean;
   functionCalling: boolean;
   knowledgeCutoff: string;
+  priceDesc: string;
+  default?: boolean;
 }
 
 export const MODEL_PRICES: Record<string, AIModelConfig> = {
@@ -77,9 +79,39 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
       input: 0.15 / 1000000,
       output: 0.6 / 1000000,
     },
+    priceDesc: "$0.26/1M tokens",
     supportsVision: true,
     functionCalling: true,
     knowledgeCutoff: "08.08.2024",
+    default: false, // added field
+  },
+  "gpt-4o": {
+    id: "gpt-4o",
+    friendlyName: "openAIGpt4oModel",
+    maxContextSize: 128000,
+    price: {
+      input: 2.5 / 1000000,
+      output: 10 / 1000000,
+    },
+    priceDesc: "$4.38/1M tokens",
+    supportsVision: true,
+    functionCalling: true,
+    knowledgeCutoff: "8.08.2024",
+    default: false, // added field
+  },
+  "claude-3-5-sonnet-latest": {
+    id: "claude-3-5-sonnet-latest",
+    friendlyName: "claude35Sonnet",
+    maxContextSize: 200000,
+    price: {
+      input: 3 / 1000000,
+      output: 15 / 1000000,
+    },
+    priceDesc: "$6.00/1M tokens",
+    supportsVision: true,
+    functionCalling: true,
+    knowledgeCutoff: "April 2024",
+    default: false, // added field
   },
   "claude-3-5-haiku-latest": {
     id: "claude-3-5-haiku-latest",
@@ -89,9 +121,11 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
       input: 1 / 1000000,
       output: 5 / 1000000,
     },
+    priceDesc: "$2.00/1M tokens",
     supportsVision: false,
     functionCalling: true,
     knowledgeCutoff: "July 2024",
+    default: true, // Haiku model is the default
   },
   "llama3-groq-70b-8192-tool-use-preview": {
     id: "llama3-groq-70b-8192-tool-use-preview",
@@ -101,8 +135,10 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
       input: 0.59 / 1000000,
       output: 0.79 / 1000000,
     },
+    priceDesc: "$0.64/1M tokens",
     supportsVision: false,
     functionCalling: true,
     knowledgeCutoff: "Unknown",
+    default: false, // added field
   },
 };

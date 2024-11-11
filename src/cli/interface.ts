@@ -85,17 +85,25 @@ export function printHelp() {
 
   // GPT-4 Models
   console.log("  GPT-4 Models:");
-  console.log(`    gpt4oMini (${AVAILABLE_MODELS.gpt4oMini})   - Smaller, faster GPT-4`);
-  console.log(`    gpt4 (${AVAILABLE_MODELS.gpt4})             - Full GPT-4`);
+  console.log(
+    `    gpt4oMini (${AVAILABLE_MODELS.gpt4oMini})   - Smaller, faster GPT-4 | Price: $0.26/1M tokens`,
+  );
+  console.log(`    gpt4 (${AVAILABLE_MODELS.gpt4})             - Full GPT-4 | Price: $4.38/1M tokens`);
 
   // Claude Models
   console.log("  Claude Models:");
-  console.log(`    claude35Sonnet (${AVAILABLE_MODELS.claude35Sonnet}) - Best Claude model`);
-  console.log(`    claude35Haiku (${AVAILABLE_MODELS.claude35Haiku})   - Fast, efficient Claude`);
+  console.log(
+    `    claude35Sonnet (${AVAILABLE_MODELS.claude35Sonnet}) - Best Claude model | Price: $6.00/1M tokens`,
+  );
+  console.log(
+    `    claude35Haiku (${AVAILABLE_MODELS.claude35Haiku})   - Fast, efficient Claude | Price: $2.00/1M tokens (Default Model)`,
+  );
 
   // Other Models
   console.log("  Other Models:");
-  console.log(`    llama (${AVAILABLE_MODELS.llama}) - Llama model via Groq. Fastest one`);
+  console.log(
+    `    llama (${AVAILABLE_MODELS.llama}) - Llama model via Groq. Fastest one | Price: $0.64/1M tokens`,
+  );
 
   // Examples section remains the same as it doesn't reference specific models
   console.log("\nExamples:");

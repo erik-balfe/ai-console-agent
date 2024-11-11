@@ -24,7 +24,7 @@ export async function askUserCallback(
   try {
     const result = await displayOptionsAndGetInput(question, options);
     duration = Date.now() - startTime;
-    logger.userInteraction(`User response: ${result}, duration: ${duration}ms`);
+    logger.debug(`User response: ${result}, duration: ${duration}ms`);
     if (result === "<input_aborted_by_user />") {
       return { cancelled: true, duration, answer: result };
     }

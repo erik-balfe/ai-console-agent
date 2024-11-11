@@ -39,69 +39,38 @@ AI Console Agent is an advanced command-line tool that uses artificial intellige
 
 ## Installation
 
-### Quick Install (Recommended)
+### For Users
 
-You can install AI Console Agent by pasting this single command and running it in your terminal:
+#### Option 1: Quick Install (Recommended)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/erik-balfe/ai-console-agent/master/install.sh | bash
 ```
 
-This command will:
+This will install the AI Console Agent globally as the `ai` command. You'll need to enter your sudo password during installation.
 
-- Download the latest AI Console Agent binary
-- Make it executable
-- Install it in a directory in your PATH
-- Guide you through setting up your OpenAI API key securely
+#### Option 2: Manual Installation
 
-After installation you can use AI Console Agent from anywhere like this:
-
-```bash
-ai-console-agent "Your natural language command or question here"
-```
-
-### Manual Installation
-
-If you prefer to install manually:
+If you prefer to see what's happening during installation:
 
 1. Download the latest release:
 
-   ```
+   ```bash
    curl -L -o ai-console-agent https://github.com/erik-balfe/ai-console-agent/releases/latest/download/ai-console-agent
    ```
 
-2. Make the file executable:
+2. Make it executable:
 
-   ```
+   ```bash
    chmod +x ai-console-agent
    ```
 
-3. Move the file to a directory in your PATH:
-
-   ```
-   sudo mv ai-console-agent /usr/local/bin/
-   ```
-
-4. Run AI Console Agent:
-
-   ```
-   ai-console-agent "Your natural language command or question here"
+3. Install globally (requires sudo):
+   ```bash
+   sudo mv ai-console-agent /usr/local/bin/ai
    ```
 
-   You will be prompted to enter your OpenAI API key on the first run.
-
-5. Clone the repository:
-
-   ```
-   git clone https://github.com/yourusername/ai-console-agent.git
-   cd ai-console-agent
-   ```
-
-6. Install dependencies:
-
-   ```
-   bun install
-   ```
+After installation, you can use the command `ai` from anywhere in your terminal. On first run, you'll be prompted to enter your OpenAI API key.
 
 ## Usage
 
@@ -136,6 +105,32 @@ ai-console-agent --help
 - Bun. To install Bun, follow the instructions at https://bun.sh/.
 - Git
 
+### Installation
+
+1. Install Bun (if not already installed):
+
+   ```bash
+   curl -fsSL https://bun.sh/install | bash
+   ```
+
+2. Clone the repository:
+
+   ```bash
+   git clone https://github.com/erik-balfe/ai-console-agent.git
+   cd ai-console-agent
+   ```
+
+3. Install dependencies:
+
+   ```bash
+   bun install
+   ```
+
+4. Run in development mode:
+   ```bash
+   bun run ./src/index.ts
+   ```
+
 ### API Key Management
 
 The application now securely stores the OpenAI API key using the system's keychain. On first run, or if no valid API key is found, you will be prompted to enter your API key. The key is then securely stored for future use.
@@ -152,19 +147,80 @@ The application now securely stores the OpenAI API key using the system's keycha
 
 AI Console Agent is in early development. While functional, it may have bugs or limitations. Use it at your own risk and always verify important operations.
 
+### Database Documentation
+
+For detailed information about the database structure and data flow, please refer to [Database Schema Documentation](docs/database.md). This document outlines the tables, relationships, and data management strategies used in the application.
+
+### Current Limitations and Known Issues
+
+1. **Input Handling**:
+
+   - Multiline user inputs are not currently supported due to limitations in the inquirer library
+
+2. **Interactive Commands**:
+
+   - Interactive commands (like 'git rebase -i') are not supported and may cause the program to hang
+   - The agent is instructed to avoid such commands and complete tasks in non-interactive mode
+
+3. **Installation and Deployment**:
+
+   - Quick installation method (curl-based install) is temporarily broken due to Bun bundling issues with dependency imports
+   - Current workaround requires manual installation:
+     - Install Bun
+     - Install program dependencies
+     - Run the program from its directory
+
+4. **System Integration**:
+   - Sudo commands don't function properly
+   - Planned fix: Implement secure password prompting without storing credentials
+
 ### Testing
 
-To run some specific tests:
+To run specific tests:
 
 ```sh
 bun test --test-name-pattern testName --timeout 30000
 ```
 
-To run all tests:
+### Future Development Plans
 
-```sh
-bun test
-```
+1. **Backend Architecture**:
+
+   - Transform the application into a backend service
+   - Support for HTTP requests with structured response format
+   - Optional plugin mode with websocket support for external program integration
+   - Local deployment capability with port-based communication
+
+2. **Visualization and Documentation**:
+
+   - Mermaid diagram integration for system architecture and workflow visualization
+   - Interactive diagrams for real-time system monitoring and documentation
+
+3. **Frontend Development**:
+
+   - Web-based UI implementation
+   - Dynamic UI generation using AI
+   - Flexible, non-hardcoded layout system
+   - Real-time interaction with backend services
+
+4. **User Interface Improvements**:
+
+   - Development of an intuitive, responsive UI
+   - Support for both local and web-based interfaces
+   - AI-driven dynamic control element generation
+   - Enhanced visualization of command execution and results
+   - Advanced cost tracking and reporting.
+
+5. **Advanced Command Execution System**:
+
+   - Enhanced command execution capabilities:
+     • Support for long-running processes with progress monitoring
+     • Ability to interrupt and manage running commands
+     • Non-blocking asynchronous command execution
+   - Improved process control and monitoring:
+     • Real-time output capture from running commands
+     • Intelligent handling of command timeouts and interrupts
+     • Multi-command parallel execution support
 
 ## Contributing
 

@@ -2,13 +2,13 @@ import { getUserEvaluation } from "../../cli/userEvaluation";
 
 export async function getUserEvaluationScore() {
   const userEvaluationNumber = await getUserEvaluation();
-  const score = normalizeUserEvaluationScore(userEvaluationNumber, [1, 5], [0, 2]);
+  const score = normalizeUserEvaluationScore(userEvaluationNumber, [1, 5], [0, 1]);
   return score;
 }
 function normalizeUserEvaluationScore(
   userEvaluationScore: number,
   initialRange: [number, number] = [1, 5],
-  targetRange: [number, number] = [0, 2],
+  targetRange: [number, number] = [0, 1],
 ): number {
   const [initialMin, initialMax] = initialRange;
   const [targetMin, targetMax] = targetRange;

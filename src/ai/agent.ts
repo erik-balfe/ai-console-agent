@@ -19,7 +19,7 @@ import { generateConversationTitle } from "../utils/generateConversationTitle";
 import { getApiKeyForModel, getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
 import { UsageCostResult } from "../utils/interface";
 import { logger, LogLevel, LogLevelType } from "../utils/logger";
-import { parseLLMResponse } from "../utils/parseAgentResponse";
+import { parseLLMResponse } from "../utils/parseLLMResponse";
 import { initializeRun } from "../utils/runManager";
 import { buildSystemMessage } from "./buildSystemMessage";
 import { getStoredConversationDataStrins, saveConversationDocument } from "./chatHistory";
@@ -32,8 +32,6 @@ export async function agentLoop(consoleInput: string, db: Database, appConfig: A
   let parsedAgentAnswer;
   let initialConversationQuery;
 
-  // each cycle is start of a new conversation when prev one is comelete and finalized
-  //  (stored with all scores, given a title and can be retrieved by retrieval)
   while (!initialConversationQuery?.cancelled) {
     if (!userQuery) {
       initialConversationQuery = await askUserCallback({
@@ -49,7 +47,6 @@ export async function agentLoop(consoleInput: string, db: Database, appConfig: A
     const startTime = Date.now();
     const conversationId = await createConversation(db, userQuery, startTime);
 
-    // cycle on a conversation until user and agent agree on completion of initial task
     do {
       logger.debug("Running agent with user query");
 
@@ -64,26 +61,32 @@ export async function agentLoop(consoleInput: string, db: Database, appConfig: A
       parsedAgentAnswer = agentResponse.parsedAgentMessage;
       logger.info(`Agent response received: ${JSON.stringify(parsedAgentAnswer)}`);
 
+      // Always print informUserMessages if they exist
+      if (parsedAgentAnswer.informUserMessages.length > 0) {
+        parsedAgentAnswer.informUserMessages.forEach((message) => {
+          console.write(formatAgentMessage(message));
+        });
+      }
+
       if (parsedAgentAnswer.taskComplete) {
         logger.info("agent confirms task is complete");
         userQuery = "";
         break;
       }
 
+      // Handle user interaction
       if (parsedAgentAnswer.questionToUser) {
         logger.debug("Agent asked a follow-up question");
-        logger.info(`Question to user: ${parsedAgentAnswer.questionToUser.question}`);
-        userQuery = (await askUserCallback(parsedAgentAnswer.questionToUser)).answer;
+        const userResponse = await askUserCallback(parsedAgentAnswer.questionToUser);
+        userQuery = userResponse.answer;
         logger.info(`User answered: ${userQuery}`);
       } else {
+        // If there's no specific question but we need user input
         const userMessage = await askUserCallback({
-          question: agentResponse.responseContent,
+          question: "Do you want to continue or is there anything else you'd like me to do?",
         });
-        logger.info(`User response: ${JSON.stringify(userMessage)}`);
         userQuery = userMessage.answer;
         if (userMessage.cancelled) {
-          // let agent process user intention to exit in next iteration and gracefully complete current task
-          // todo: maybe log something like "saving conversation and exiting"
           console.log("Saving conversation data and exiting");
         }
       }
@@ -114,8 +117,11 @@ export async function runAgent(
   const config = loadConfig();
   const contextData = await gatherContextData();
   const messages = await prepareMessages(input, runDir, contextData, config, db, conversationId);
-  const taskMessageContent =
-    "Now, please process the following user query:\n\n" + "<user_query>\n" + input + "\n</user_query>";
+  const taskMessageContent = `
+    Now, please process the following user query:
+    <user_query>
+    ${input}
+    </user_query>`;
   logger.debug("Creating conversation in DB");
   const executeCommandTool = createExecuteCommandTool(db, conversationId);
   logger.debug("Initializing OpenAI agent");
@@ -175,24 +181,15 @@ async function executeTask(
   model: string,
 ) {
   let responseContent: string | null = null;
+  let lastTextContent: string | null = null; // Keep track of the last meaningful text message
   let parsedAgentMessage: ParsedAgentMessage | null = null;
   let stepNumber = 0;
   let totalCost = 0;
 
   logger.debug("Starting task execution");
-  logger.debug(
-    "Initial messages:",
-    JSON.stringify(
-      messages.map((m) => m.content.slice(0, 100)),
-      null,
-      2,
-    ),
-  );
 
-  logger.debug("Creating agent task");
   const task = agent.createTask(userQuery, false, logger.getLevel() === LogLevel.DEBUG, messages);
 
-  logger.debug("Starting task iteration");
   for await (const stepOutput of task as any) {
     const stepStartTime = Date.now();
     try {
@@ -208,11 +205,12 @@ async function executeTask(
       responseContent = parsedResponse.content;
 
       if (responseContent) {
-        // Only process and save if there's actual text content
+        // Store the last meaningful text content
+        lastTextContent = responseContent;
+
         const stepExecutionTime = Date.now() - stepStartTime;
         logger.debug(`Step ${stepNumber} execution time: ${stepExecutionTime}ms`);
 
-        logger.debug("Inserting message to DB");
         await insertMessage(
           db,
           conversationId,
@@ -222,11 +220,9 @@ async function executeTask(
           MESSAGE_ROLES.AGENT,
         );
 
-        logger.debug("Parsing agent message");
         parsedAgentMessage = parseAgentMessage(responseContent);
 
         if (parsedAgentMessage.informUserMessages.length > 0) {
-          logger.debug("Processing inform user messages");
           parsedAgentMessage.informUserMessages.forEach((message) => {
             console.write(formatAgentMessage(message));
           });
@@ -243,8 +239,9 @@ async function executeTask(
     }
   }
 
+  // Use the last meaningful text message instead of the potentially empty final message
   return {
-    responseContent: responseContent ?? "",
+    responseContent: lastTextContent ?? "",
     parsedAgentMessage: parsedAgentMessage as any,
     totalCost,
   };

@@ -57,7 +57,7 @@ export async function getRelevantContext(
   // todo: adjust similarityTopK according to quota for memery.
   logger.debug("Starting retrieval process with query:", query);
   try {
-    const topK = 3;
+    const topK = 10;
     const retriever = vectorStoreIndex.asRetriever({ similarityTopK: topK });
     logger.debug("Initialized retriever with similarityTopK:", topK);
 

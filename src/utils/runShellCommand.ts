@@ -10,8 +10,8 @@ export async function runShellCommand(
   try {
     const { stdout, stderr } = await execAsync(command, options);
     return {
-      stdout: stdout.toString(),
-      stderr: stderr.toString(),
+      stdout: stdout.toString().trim(),
+      stderr: stderr.toString().trim(),
     };
   } catch (error: any) {
     return {

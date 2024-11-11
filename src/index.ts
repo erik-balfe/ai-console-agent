@@ -15,7 +15,6 @@ config();
 
 async function main() {
   const db = await initializeDatabase();
-  logger.info("Database initialized successfully");
 
   try {
     const { input, resetKey, showHelp, setLogLevel, getLogLevel, model } = parseArguments(Bun.argv);
@@ -72,7 +71,7 @@ async function main() {
     try {
       logger.debug("Starting user interaction loop");
       let userQuery = input;
-      logger.info(`Initial user query: ${userQuery}`);
+      logger.debug(`Initial user query: ${userQuery}`);
       await agentLoop(userQuery, db, appConfig);
     } catch (error) {
       if (error instanceof APIError) {

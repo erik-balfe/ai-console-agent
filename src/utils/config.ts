@@ -96,7 +96,7 @@ export function revertLastChange(): boolean {
     return false;
   }
 }
-
+loadConfig
 export function loadConfig(): { appConfig: AppConfig; userPrefs: UserPreferences } {
   if (!fs.existsSync(CONFIG_DIR_PATH)) {
     fs.mkdirSync(CONFIG_DIR_PATH, { recursive: true });

@@ -49,37 +49,27 @@ export interface ParsedAgentMessage {
     text: string;
     details: string;
   };
-  questionToUser?: {
-    question: string;
-    options: string[];
-  };
   informUserMessages: string[];
   taskComplete: boolean;
 }
 
-export function parseAgentMessage(message: string): ParsedAgentMessage {
-  const { responseText, responseDetails, isFinalAnswer } = parseAgentResponseContent(message);
-  const { questionToUser, optionsForUser } = extractQuestionToUser(message);
-
-  const informRegex = new RegExp(`<${informUserTag}>([\\s\\S]*?)</${informUserTag}>`, "g");
-  const informMatches = [...(message.matchAll(informRegex) || [])];
-  const informMessages = informMatches.map((match) => match[1].trim());
-  const taskComplete = message.includes("<exit />");
-
-  return {
-    ...(isFinalAnswer && {
-      finalResponse: {
-        text: responseText,
-        details: responseDetails,
-      },
-    }),
-    ...(questionToUser && {
-      questionToUser: {
-        question: questionToUser,
-        options: optionsForUser,
-      },
-    }),
-    taskComplete,
-    informUserMessages: informMessages,
+export function parseAgentMessage(content: string): ParsedAgentMessage {
+  const result: ParsedAgentMessage = {
+    finalResponse: { text: "", details: "" },
+    informUserMessages: [],
+    taskComplete: false,
   };
+
+  // Remove thought process content first
+  const cleanContent = content.replace(/<thought_process>[\s\S]*?<\/thought_process>/g, "").trim();
+
+  if (cleanContent) {
+    // If there's content outside thought_process, add it to informUserMessages
+    result.informUserMessages.push(cleanContent);
+  }
+
+  // Check for task completion
+  result.taskComplete = content.includes("<exit />");
+
+  return result;
 }

@@ -20,7 +20,7 @@ export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
   let index: VectorStoreIndex;
 
   try {
-    logger.info("Attempting to load existing index");
+    logger.debug("Attempting to load existing index");
     index = await VectorStoreIndex.init({
       storageContext,
       serviceContext: serviceContextFromDefaults({
@@ -28,9 +28,9 @@ export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
         llm: new OpenAI({ apiKey, model: LLM_ID }),
       }),
     });
-    logger.info("Existing index loaded successfully");
+    logger.debug("Existing index loaded successfully");
   } catch (error) {
-    logger.info("Existing index not found. Creating new index");
+    logger.debug("Existing index not found. Creating new index");
     index = await VectorStoreIndex.fromDocuments([], { storageContext });
     logger.info("New index created successfully");
   }

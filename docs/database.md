@@ -2,150 +2,216 @@
 
 ## Introduction
 
-The AI Console Agent utilizes a SQLite database to track user interactions, agent responses, and tool usages. This document details the database structure, data flow, and entity relationships integral to the application.
+The AI Console Agent uses SQLite to store conversation history, tool interactions, and performance metrics. This document details the database structure, interfaces, and usage patterns for developers.
 
-## Tables
+## Database Version
 
-### 1. Conversations Table
+Current database version: 6
+Location: `~/.ai-console-agent/chat_history.db`
 
-- **Purpose**: Stores user conversations, enabling the tracking of user queries and feedback.
-- **Fields**:# Database Schema Overview for AI Console Agent
-
-## Introduction
-
-The AI Console Agent uses a SQLite database to track user interactions, agent responses, and tool interactions. This document outlines the database structure, the data flow within the application, and the relationships between data entities.
-
-## Tables
+## Schema Structure
 
 ### 1. Conversations Table
 
-- **Purpose**: Stores each user conversation to track user queries and feedback.
-- **Fields**:
-  - `id`: `INTEGER PRIMARY KEY AUTOINCREMENT` - Unique identifier for the conversation.
-  - `user_query`: `TEXT NOT NULL` - The query or command entered by the user.
-  - `timestamp`: `BIGINT NOT NULL` - The time when the conversation started (milliseconds since epoch).
-  - `user_feedback`: `TEXT` - Optional feedback captured from the user after the interaction.
-  - `total_time`: `INTEGER` - Total duration of the conversation in milliseconds.
+Primary storage for user-agent interactions:
 
----
+```sql
+CREATE TABLE conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userQuery TEXT NOT NULL,          -- Original user input
+    response TEXT DEFAULT NULL,       -- Final agent response
+    title TEXT DEFAULT '',           -- Conversation summary
+    timestamp BIGINT NOT NULL,       -- Start time (ms since epoch)
+    totalTime INTEGER,               -- Total duration (ms)
+    userFeedback REAL DEFAULT 0.5,     -- User rating (0-1)
+    correctness REAL DEFAULT 0.5,      -- Accuracy score
+    faithfulness REAL DEFAULT 0.5,     -- Query match score
+    relevancy REAL DEFAULT 0.5,        -- Relevance score
+    lastRetrieved INTEGER DEFAULT null,  -- Last access time
+    retrievalCount INTEGER DEFAULT 0     -- Usage count
+);
+```
 
-### 2. Agent Steps Table
+### 2. Messages Table
 
-- **Purpose**: Logs each step taken by the agent during a conversation, detailing responses and execution metrics.
-- **Fields**:
-  - `id`: `INTEGER PRIMARY KEY AUTOINCREMENT` - Unique identifier for each agent step.
-  - `conversation_id`: `INTEGER NOT NULL` - Foreign key linking to the `conversations` table.
-  - `step_number`: `INTEGER NOT NULL` - The order of this step within its conversation.
-  - `content`: `TEXT NOT NULL` - The content of the agent's response.
-  - `timestamp`: `BIGINT NOT NULL` - Execution time of the step (milliseconds since epoch).
-  - `execution_time`: `INTEGER NOT NULL` - Duration taken for the agent to generate this response (milliseconds).
-  - `role`: `TEXT NOT NULL` - The entity's role (e.g., AGENT).
+Sequential record of conversation steps:
 
----
-
-### 3. Tool Uses Table
-
-- **Purpose**: Records the usage of tools by the agent, tracking command executions and their results.
-- **Fields**:
-  - `id`: `INTEGER PRIMARY KEY AUTOINCREMENT` - Unique identifier for each tool usage entry.
-  - `conversation_id`: `INTEGER NOT NULL` - Foreign key linking back to the `conversations` table, indicating which conversation this tool usage is part of.
-  - `step_id`: `INTEGER NOT NULL` - Foreign key linking to the `agent_steps` table, indicating which agent step the tool call is part of.
-  - `tool_name`: `TEXT NOT NULL` - Name of the tool used (e.g., "executeCommand").
-  - `input_params`: `TEXT NOT NULL` - Parameters passed to the tool, typically saved as a JSON string.
-  - `output`: `TEXT NOT NULL` - The result returned from the tool, captured as a JSON string.
-  - `timestamp`: `BIGINT NOT NULL` - Time of tool usage (milliseconds since epoch).
-  - `execution_time`: `INTEGER NOT NULL` - Duration taken for the tool to execute (milliseconds).
-
----
-
-## Data Flow
-
-1. **Initialization**:
-   When the application starts, the database initializes and creates necessary tables if they do not exist.
-
-2. **Saving Conversations**:
-
-   - Each user query results in a new entry in the `conversations` table, logging the `user_query` and timestamp.
-
-3. **Logging Agent Steps**:
-
-   - As the agent processes tasks, it records its responses in the `agent_steps` table. Each entry captures the `conversation_id`, `step_number`, `content`, and execution metrics.
-
-4. **Tool Usage Tracking**:
-   - During tool executions (e.g., executing commands), entries are added to the `tool_uses` table with the `conversation_id`, `step_id`, and more to maintain context.
-
----
-
-## Relationships
-
-- **Conversations** to **Agent Steps**: Linked through `conversation_id`, allowing for a comprehensive view of all steps taken in a specific conversation.
-- **Agent Steps** to **Tool Uses**: The `step_id` allows for detailed tracking of tool usage in relation to agent responses.
-
-## Conclusion
-
-This document provides a comprehensive overview of the database schema in the AI Console Agent, including detailed descriptions of the tables, their fields, data flow, and interconnections. This should serve as a reference for developers and facilitate effective data management practices within the application.
-
-  - `id`: `INTEGER PRIMARY KEY AUTOINCREMENT` - Unique identifier for each conversation.
-  - `user_query`: `TEXT NOT NULL` - The command or query submitted by the user.
-  - `timestamp`: `BIGINT NOT NULL` - The conversation start time (in milliseconds since epoch).
-  - `user_feedback`: `TEXT` - User feedback related to this conversation (optional).
-  - `total_time`: `INTEGER` - Total duration of the conversation (in milliseconds).
-
----
-
-### 2. Agent Steps Table
-
-- **Purpose**: Logs responses and actions taken by the agent during conversations.
-- **Fields**:
-  - `id`: `INTEGER PRIMARY KEY AUTOINCREMENT` - Unique identifier for each agent step.
-  - `conversation_id`: `INTEGER NOT NULL` - Foreign key linking to the corresponding entry in the `conversations` table.
-  - `step_number`: `INTEGER NOT NULL` - Order number of the step within its conversation.
-  - `content`: `TEXT NOT NULL` - The content of the agent's generated response.
-  - `timestamp`: `BIGINT NOT NULL` - When the step was executed (in milliseconds since epoch).
-  - `execution_time`: `INTEGER NOT NULL` - Time taken for the agent to produce this step's response (in milliseconds).
-  - `role`: `TEXT NOT NULL` - Indicates the entity's role, typically “AGENT”.
-
----
+```sql
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversationId INTEGER NOT NULL,   -- Reference to conversations table
+    stepNumber INTEGER NOT NULL,       -- Order in conversation
+    content TEXT NOT NULL,             -- Message content
+    timestamp BIGINT NOT NULL,         -- Creation time (ms since epoch)
+    duration INTEGER NOT NULL,         -- Processing time (ms)
+    role TEXT NOT NULL,                -- Message sender (user/agent/system)
+    FOREIGN KEY (conversationId) REFERENCES conversations (id)
+);
+```
 
 ### 3. Tool Uses Table
 
-- **Purpose**: Records interactions with tools invoked by the agent.
-- **Fields**:
-  - `id`: `INTEGER PRIMARY KEY AUTOINCREMENT` - Unique identifier for the tool usage record.
-  - `conversation_id`: `INTEGER NOT NULL` - Links to the `conversations` table.
-  - `step_id`: `INTEGER NOT NULL` - Links to the `agent_steps` table, indicating the agent step during which the tool was used.
-  - `tool_name`: `TEXT NOT NULL` - The name of the tool executed (e.g., "executeCommand").
-  - `input_params`: `TEXT NOT NULL` - Parameters provided to the tool, formatted as a JSON string.
-  - `output`: `TEXT NOT NULL` - Result returned by the tool, also formatted as a JSON string.
-  - `timestamp`: `BIGINT NOT NULL` - Time of tool usage (in milliseconds since epoch).
-  - `execution_time`: `INTEGER NOT NULL` - Time taken for the tool to execute (in milliseconds).
+Records of command and tool executions:
 
----
+```sql
+CREATE TABLE tool_uses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversationId INTEGER NOT NULL,    -- Reference to conversations table
+    stepId INTEGER NOT NULL,            -- Reference to messages table
+    toolName TEXT NOT NULL,             -- Tool identifier
+    inputParams TEXT NOT NULL,          -- Tool parameters (JSON)
+    output TEXT NOT NULL,               -- Execution result
+    timestamp BIGINT NOT NULL,          -- Execution time (ms since epoch)
+    duration INTEGER NOT NULL,          -- Execution duration (ms)
+    FOREIGN KEY (stepId) REFERENCES messages (id),
+    FOREIGN KEY (conversationId) REFERENCES conversations (id)
+);
+```
 
-## Data Flow
+## Data Flow and Relationships
 
-1. **Initialization**:
+### Data Structure
 
-   - Upon application startup, the database initializes and constructs necessary tables if they do not already exist.
+```mermaid
+graph LR
+    C[Conversations] --> M[Messages]
+    M --> T[Tool Uses]
+    C --> T
+```
 
-2. **Capturing Conversations**:
+### Flow Description
 
-   - Each user query generates a new entry in the `conversations` table, storing the `user_query` and associated timestamp.
+1. Each conversation starts with user input
+2. Multiple messages are recorded in sequence:
+   - User queries
+   - Agent responses
+   - System messages
+3. Tool uses are linked to specific messages
+4. Performance metrics and scores are updated throughout
 
-3. **Logging Agent Interactions**:
+## TypeScript Interfaces
 
-   - As the agent responds to user queries, each response is recorded in the `agent_steps` table, capturing critical execution metrics.
+```typescript
+interface ConversationScores {
+  userFeedback: number; // User rating (0-1)
+  correctness: number; // Response accuracy (0-1)
+  faithfulness: number; // Query match quality (0-1)
+  relevancy: number; // Response relevance (0-1)
+}
 
-4. **Tracking Tool Usages**:
-   - When tools are executed, corresponding entries populate the `tool_uses` table, maintaining references to both the initiating conversation and the related agent step.
+interface ConversationMetadata extends ConversationScores {
+  timestamp: number; // Conversation start time
+  retrievalCount: number; // Times this conversation was referenced
+  lastRetrieved: number | null; // Last access timestamp
+}
 
----
+interface Conversation extends ConversationMetadata {
+  id: number; // Unique identifier
+  userQuery: string; // Original user input
+  title: string; // Conversation summary
+  totalTime: number; // Total processing time
+  response: string | null; // Final agent response
+}
 
-## Relationships
+interface ToolCallRecord {
+  id: number; // Unique identifier
+  stepId: number; // Reference to message
+  toolName: string; // Tool identifier
+  inputParams: string; // Tool parameters (JSON)
+  output: string; // Execution result
+  timestamp: number; // Execution time
+  duration: number; // Processing time
+}
+```
 
-- **Conversations ↔ Agent Steps**: Linked by `conversation_id`, enabling tracking of all steps associated with a particular conversation.
-- **Agent Steps ↔ Tool Uses**: Connected through `step_id`, detailing which steps involved tool operations.
+## Key Operations
 
-## Conclusion
+### Inserting Data
 
-This document serves as a guide to the database schema within the AI Console Agent. By detailing the purpose and relationships of the various tables, it offers clarity on data management and retrieval strategies essential for maintaining an effective conversational AI environment.
+```typescript
+insertConversation(db, userQuery, startTime): Promise<number>
+insertMessage(db, conversationId, stepNumber, content, duration, role): Promise<number>
+insertToolUse(db, conversationId, stepId, toolName, inputParams, output, duration, timestamp): Promise<number>
+```
+
+### Retrieving Data
+
+```typescript
+getConversation(db, conversationId): Conversation | undefined
+getAllConversations(db): Conversation[]
+getAllConversationData(db, conversationId): {
+    messages: AgentMessage[];
+    toolCalls: ToolCall[];
+    conversationData: ConversationMetadata & { userQuery: string };
+}
+```
+
+### Updating Data
+
+```typescript
+updateConversationFields(db, {
+    conversationId,
+    title,
+    totalTime,
+    correctness,
+    faithfulness,
+    relevancy,
+    retrievalCount,
+    userFeedback,
+    lastRetrieved,
+    response
+}): Promise<void>
+```
+
+## Development Guidelines
+
+### 1. Time Handling
+
+- All timestamps use milliseconds since epoch
+- Store as BIGINT in database
+- Use `Date.now()` for consistency
+- Duration fields measure processing time in milliseconds
+
+### 2. Performance Metrics
+
+- Track duration for all operations
+- Monitor conversation retrieval patterns
+- Record tool execution times
+- Maintain scoring system accuracy
+
+### 3. Data Validation
+
+- Verify foreign key relationships
+- Ensure required fields are present
+- Validate score ranges (0-1)
+- Check timestamp consistency
+
+### 4. Error Handling
+
+- Handle missing conversations gracefully
+- Validate input types
+- Use try-catch for database operations
+- Log database errors appropriately
+
+## Scoring System
+
+The database implements four quality metrics, each ranging from 0 to 1:
+
+1. **User Feedback** (userFeedback)
+
+   - Direct user ratings
+   - Default: 0.5
+
+2. **Correctness Score** (correctness)
+
+   - Measures response accuracy
+   - Default: 0.5
+
+3. **Faithfulness Score** (faithfulness)
+
+   - Alignment with user queries
+   - Default: 0.5
+
+4. **Relevancy Score** (relevancy)
+   - Response usefulness
+   - Default: 0.5
