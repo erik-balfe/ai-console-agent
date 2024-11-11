@@ -39,7 +39,7 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
   return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
     name: "executeCommand",
     description:
-      "Execute a command on the user's system. The command is run in a separate process, and the output is captured and returned. Commands that suppose to be interactive (like usual 'git commit') are not supported and must be strongly avoided.",
+      "Execute a shell command on the user's host system. Commands that suppose to be interactive (like usual 'git commit') are not supported and must be strongly avoided.",
     parameters: {
       type: "object",
       properties: {

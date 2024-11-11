@@ -6,59 +6,56 @@ import { createToolMiddleware } from "./toolMiddleware";
 
 interface AskUserParams {
   question: string;
-  options: string[];
+  options?: string[];
+  withoutFreeAnswer?: boolean;
 }
 
-const askUserCallback = async (params: AskUserParams): Promise<string> => {
+export async function askUserCallback(
+  params: AskUserParams,
+): Promise<{ answer: string; duration: number; cancelled?: boolean }> {
   logger.debug("Starting userInteractionTool");
-
+  const startTime = Date.now();
+  let duration = 0;
   const { question, options = [] } = params;
 
-  logger.userInteraction(`Question: ${question}`);
-  logger.debug(`Options: ${options.join(", ")}`);
+  // logger.userInteraction(`Question: ${question}`);
+  // logger.debug(`Options: ${options.join(", ")}`);
 
   try {
     const result = await displayOptionsAndGetInput(question, options);
-    logger.userInteraction(`User response: ${result}`);
-
+    duration = Date.now() - startTime;
+    logger.userInteraction(`User response: ${result}, duration: ${duration}ms`);
     if (result === "<input_aborted_by_user />") {
-      throw new Error(result);
+      return { cancelled: true, duration, answer: result };
     }
-    return result;
+    return { answer: result, duration };
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === "<input_aborted_by_user />") {
-        logger.info(`AskUser choice aborted by user`);
-        return "User chose to abort the task. It is a sign to end the conversation. No further actions are needed.";
-      }
-    } else {
-      logger.error("Unknown error during user interaction");
-    }
+    logger.error("Unknown error during user interaction");
     throw error;
   }
-};
-
-export function createAskUserTool(db: Database, conversationId: number) {
-  const wrappedCallback = createToolMiddleware(db, conversationId)("askUser", askUserCallback);
-
-  return new FunctionTool<AskUserParams, Promise<string>>(wrappedCallback, {
-    name: "askUser",
-    description:
-      "Facilitate user interaction to gather input, confirm choices, or clarify any ambiguous points. Offer predefined options to enhance user experience and enable more meaningful engagement. Additionally, it is always allowed for the user to provide free-form responses instead of listed options.",
-    parameters: {
-      type: "object",
-      properties: {
-        question: {
-          type: "string",
-          description: "The question to ask the user",
-        },
-        options: {
-          type: "array",
-          items: { type: "string" },
-          description: "List of options for the user to choose from (max 30 words each).",
-        },
-      },
-      required: ["question"],
-    },
-  });
 }
+
+// export function createAskUserTool(db: Database, conversationId: number) {
+//   const wrappedCallback = createToolMiddleware(db, conversationId)("askUser", askUserCallback);
+
+//   return new FunctionTool<AskUserParams, Promise<string>>(wrappedCallback, {
+//     name: "askUser",
+//     description:
+//       "This provides user a prompt in console interface with a 'question' passed as argument and optionally provides predefined options that are displayed in user's console interface to choose from by just selecting one of them by keyboard. Additionally to provided options, user of The App is always allowed to type responses instead of selecting from provided options.",
+//     parameters: {
+//       type: "object",
+//       properties: {
+//         question: {
+//           type: "string",
+//           description: "The question to ask the user",
+//         },
+//         options: {
+//           type: "array",
+//           items: { type: "string" },
+//           description: "List of options for the user to choose from (max 30 words each).",
+//         },
+//       },
+//       required: ["question"],
+//     },
+//   });
+// }

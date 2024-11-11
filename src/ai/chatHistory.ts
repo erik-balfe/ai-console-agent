@@ -1,9 +1,8 @@
-import { ChatMessage, MetadataMode, VectorStoreIndex } from "llamaindex";
+import { MetadataMode, VectorStoreIndex } from "llamaindex";
 import { addConversationDocument, initializeVectorStoreIndex } from "../ai/retrieval/vectorStore";
-import { MEMORY_DESCRIPTION } from "../constants";
-import { ConversationMetadata, Database, getAllConversationData } from "./database";
-import { logger } from "./logger";
-import { strigifyFullConversation } from "./strigifyFullConversation";
+import { ConversationMetadata, Database, getAllConversationData } from "../utils/database";
+import { logger } from "../utils/logger";
+import { strigifyFullConversation } from "../utils/strigifyFullConversation";
 
 export async function saveConversationDocument(db: Database, conversationId: number): Promise<void> {
   const document = await createDocumentFromConversation(db, conversationId);
@@ -55,22 +54,24 @@ export async function getRelevantContext(
   query: string,
 ): Promise<string[]> {
   // todo: increase 'retrievalCount' and 'lastRetrieved' on each item that is passed to the agent
+  // todo: adjust similarityTopK according to quota for memery.
   logger.debug("Starting retrieval process with query:", query);
   try {
-    const retriever = vectorStoreIndex.asRetriever({ similarityTopK: 5 });
-    logger.debug("Initialized retriever with similarityTopK:", 5);
+    const topK = 3;
+    const retriever = vectorStoreIndex.asRetriever({ similarityTopK: topK });
+    logger.debug("Initialized retriever with similarityTopK:", topK);
 
     const nodes = await retriever.retrieve(query);
     logger.debug(`Retrieved ${nodes.length} relevant nodes from the vector store.`);
 
     if (nodes.length > 0) {
-      logger.debug(`Node details:\n`, JSON.stringify(nodes, null, 2));
+      // logger.debug(`Node details:\n`, JSON.stringify(nodes, null, 2));
     } else {
       logger.debug("No nodes retrieved for the given query.");
     }
 
     const relevantNodes = nodes.map((node) => node.node.getContent(MetadataMode.ALL));
-    logger.debug(`Retrieved nodes with content snippet: ${JSON.stringify(relevantNodes)}`);
+    // logger.debug(`Retrieved nodes with content snippet: ${JSON.stringify(relevantNodes)}`);
 
     return relevantNodes;
   } catch (error) {
@@ -79,8 +80,21 @@ export async function getRelevantContext(
   }
 }
 
-export async function buildMemorySystemMessage(input: string): Promise<ChatMessage | null> {
+export async function getStoredConversationDataStrins(
+  input: string,
+  db: Database,
+  conversationId: number,
+): Promise<{ memories: string; chatHistory: string }> {
   logger.debug("Building memory system message with input:", input);
+
+  const fullConversation = getAllConversationData(db, conversationId);
+  const stringifiedConversation = strigifyFullConversation(
+    fullConversation.messages,
+    fullConversation.toolCalls,
+    fullConversation.conversationData,
+  );
+  // logger.debug("----------Current conversation history:", chatHistory, "\n-------------\n\n");
+
   const vectorStoreIndex = await initializeVectorStoreIndex();
   logger.debug("Initialized vectorStoreIndex for memory system message.");
 
@@ -89,17 +103,10 @@ export async function buildMemorySystemMessage(input: string): Promise<ChatMessa
 
   if (!relevantContext.length) {
     logger.debug("No relevant context found for the current query");
-    return null;
+    // return null;
   }
 
-  const memoryItems = relevantContext.map((item) => `<memory>${item}</memory>`).join("\n\n");
-  logger.debug("Constructed memory items for system message.");
+  const memories = relevantContext.map((item) => `<memory>${item}</memory>`).join("\n\n");
 
-  const memorySystemMessage: ChatMessage = {
-    role: "system",
-    content: `${MEMORY_DESCRIPTION}:\n` + memoryItems,
-  };
-  logger.debug("Final memory system message constructed:", memorySystemMessage);
-
-  return memorySystemMessage;
+  return { memories, chatHistory: stringifiedConversation };
 }

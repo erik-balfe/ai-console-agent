@@ -16,22 +16,24 @@ export interface AgentStep {
   stepNumber: number;
   content: string;
   timestamp: number;
-  executionTime: number;
+  duration: number;
   role: string;
 }
+
+const LATEST_DB_VERSION = 6;
 
 export async function initializeDatabase(): Promise<Database> {
   const db = new Database(DB_PATH, { create: true });
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS db_version (
-      version INTEGER PRIMARY KEY
+      version INTEGER DEFAULT ${LATEST_DB_VERSION} PRIMARY KEY
     );
 
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userQuery TEXT NOT NULL,
-      response TEXT,
+      response TEXT DEFAULT NULL,
       title TEXT DEFAULT '',
       timestamp BIGINT NOT NULL,
       userFeedback REAL DEFAULT 1,
@@ -43,13 +45,13 @@ export async function initializeDatabase(): Promise<Database> {
       retrievalCount INTEGER DEFAULT 0
     );
 
-    CREATE TABLE IF NOT EXISTS agent_steps (
+    CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversationId INTEGER NOT NULL,
       stepNumber INTEGER NOT NULL,
       content TEXT NOT NULL,
       timestamp BIGINT NOT NULL,
-      executionTime INTEGER NOT NULL,
+      duration INTEGER NOT NULL,
       role TEXT NOT NULL,
       FOREIGN KEY (conversationId) REFERENCES conversations (id)
     );
@@ -62,14 +64,23 @@ export async function initializeDatabase(): Promise<Database> {
       inputParams TEXT NOT NULL,
       output TEXT NOT NULL,
       timestamp BIGINT NOT NULL,
-      executionTime INTEGER NOT NULL,
-      FOREIGN KEY (stepId) REFERENCES agent_steps (id),
+      duration INTEGER NOT NULL,
+      FOREIGN KEY (stepId) REFERENCES messages (id),
       FOREIGN KEY (conversationId) REFERENCES conversations (id)
     );
   `);
 
-  await migrateDatabase(db);
+  const currentVersion = db.query("SELECT version FROM db_version").get() as { version: number } | undefined;
 
+  if (currentVersion) {
+    logger.debug(`Current database version: ${currentVersion.version}`);
+  } else {
+    logger.debug("No database version found");
+  }
+
+  // await migrateDatabase(db);
+
+  logger.debug(`Database initialized successfully at ${DB_PATH}`);
   return db;
 }
 
@@ -100,7 +111,7 @@ export interface ToolCallRecord {
   inputParams: string;
   output: string;
   timestamp: number;
-  executionTime: number;
+  duration: number;
 }
 
 export async function insertConversation(
@@ -110,28 +121,29 @@ export async function insertConversation(
 ): Promise<number> {
   logger.debug(`Inserting conversation: ${userQuery}`);
 
-  const result = db.run("INSERT INTO conversations (userQuery, timestamp) VALUES (?, ?)", [
+  const result = db.run("INSERT INTO conversations (userQuery, timestamp, response) VALUES (?, ?, ?)", [
     userQuery,
     startTime,
+    null,
   ]);
   return Number(result.lastInsertRowid);
 }
 
-export async function insertAgentStep(
+export async function insertMessage(
   db: Database,
   conversationId: number,
   stepNumber: number,
   content: string,
-  executionTime: number,
+  duration: number,
   role: string,
 ): Promise<number> {
   logger.debug(
-    `Inserting agent step: ${stepNumber} for conversation ${conversationId}, execution time: ${executionTime}ms`,
+    `Inserting message: ${stepNumber} for conversation ${conversationId}, execution time: ${duration}ms`,
   );
   const timestamp = Date.now();
   const result = db.run(
-    "INSERT INTO agent_steps (conversationId, stepNumber, content, timestamp, executionTime, role) VALUES (?, ?, ?, ?, ?, ?)",
-    [conversationId, stepNumber, content, timestamp, executionTime, role],
+    "INSERT INTO messages (conversationId, stepNumber, content, timestamp, duration, role) VALUES (?, ?, ?, ?, ?, ?)",
+    [conversationId, stepNumber, content, timestamp, duration, role],
   );
   return Number(result.lastInsertRowid);
 }
@@ -148,12 +160,12 @@ export async function insertToolUse(
   toolName: string,
   inputParams: string,
   output: string,
-  executionTime: number,
+  duration: number,
   timestamp: number,
 ): Promise<number> {
   const result = db.run(
-    "INSERT INTO tool_uses (conversationId, stepId, toolName, inputParams, output, timestamp, executionTime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [conversationId, stepId, toolName, inputParams, output, timestamp, executionTime],
+    "INSERT INTO tool_uses (conversationId, stepId, toolName, inputParams, output, timestamp, duration) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [conversationId, stepId, toolName, inputParams, output, timestamp, duration],
   );
   return Number(result.lastInsertRowid);
 }
@@ -211,6 +223,14 @@ export async function updateConversationFields(
 }
 
 export function printDatabaseContents(db: Database) {
+  const currentVersion = db.query("SELECT version FROM db_version").get() as { version: number } | undefined;
+
+  if (currentVersion) {
+    logger.debug(`Current database version: ${currentVersion.version}`);
+  } else {
+    logger.debug("No database version found");
+  }
+
   logger.debug("Current database contents:");
   const conversations = getAllConversations(db);
   logger.debug(`Total conversations: ${conversations.length}`);
@@ -233,17 +253,17 @@ export function getAllConversationData(
 ): {
   messages: AgentMessage[];
   toolCalls: ToolCall[];
-  conversationData: ConversationMetadata;
+  conversationData: ConversationMetadata & { userQuery: string };
 } {
   const conversationData = getConversation(db, conversationId);
 
   const steps = db
-    .query("SELECT content, role, timestamp FROM agent_steps WHERE conversationId = ?")
+    .query("SELECT content, role, timestamp FROM messages WHERE conversationId = ? ORDER BY timestamp ASC")
     .all(conversationId) as Array<{ content: string; role: MessageRole; timestamp: number }>;
 
   const toolCalls = db
     .query(
-      "SELECT toolName, inputParams, output, timestamp, executionTime FROM tool_uses WHERE conversationId = ?",
+      "SELECT toolName, inputParams, output, timestamp, duration FROM tool_uses WHERE conversationId = ? ORDER BY timestamp ASC",
     )
     .all(conversationId) as Array<ToolCall>;
 
@@ -260,42 +280,6 @@ export function getAllConversationData(
   return { messages, toolCalls, conversationData };
 }
 
-export async function insertMessage(
-  db: Database,
-  conversationId: number,
-  content: string,
-  role: string,
-): Promise<number> {
-  const timestamp = Date.now();
-  const result = db.run(
-    "INSERT INTO agent_steps (conversationId, stepNumber, content, timestamp, executionTime, role) VALUES (?, ?, ?, ?, ?, ?)",
-    [conversationId, 0, content, timestamp, 0, role],
-  );
-  return Number(result.lastInsertRowid);
-}
-
 export { Database };
 
-export async function migrateDatabase(db: Database): Promise<void> {
-  try {
-    const currentVersion = db.query("SELECT version FROM db_version").get() as
-      | { version: number }
-      | undefined;
-
-    if (!currentVersion) {
-      db.run("INSERT INTO db_version (version) VALUES (?)", [1]);
-      logger.debug("Initialized new database with version 1");
-      return;
-    }
-
-    // if (currentVersion.version < 2) {
-    // logger.debug("Migrating database to version 2");
-
-    // }
-    // Add future migrations here
-    // if (currentVersion.version < 2) { ... }
-  } catch (error) {
-    logger.error("Error during database migration:", error);
-    throw error;
-  }
-}
+export async function migrateDatabase(db: Database): Promise<void> {}

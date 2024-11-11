@@ -1,104 +1,219 @@
-import type { ChatMessage, LLM } from "llamaindex";
-import { OpenAI, OpenAIAgent } from "llamaindex";
-import { LLM_ID, MESSAGE_ROLES } from "../constants";
-import { createAskUserTool } from "../tools/askUser";
-import { createExecuteCommandTool } from "../tools/executeCommand";
-import { buildMemorySystemMessage, saveConversationDocument } from "../utils/chatHistory";
-import { loadConfig } from "../utils/config";
-
+import type { ChatMessage } from "llamaindex";
+import { OpenAIAgent } from "llamaindex";
 import { DynamicContextData, gatherContextData } from "../cli/contextUtils";
-import { getUserEvaluation } from "../cli/userEvaluation";
+import { LLM_ID, MESSAGE_ROLES, MODEL_PRICES } from "../constants";
+import { getCorrectness, getFaithfulness, getRelevancy } from "../features/userScore/evaluations/evaluations";
+import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationScore";
+import { askUserCallback } from "../tools/askUser";
+import { createExecuteCommandTool } from "../tools/executeCommand";
+import { AppConfig, loadConfig } from "../utils/config";
 import {
   insertConversation as createConversation,
   Database,
   getAllConversationData,
-  insertAgentStep,
+  insertMessage,
   updateConversationFields,
 } from "../utils/database";
 import { formatAgentMessage } from "../utils/formatting";
 import { generateConversationTitle } from "../utils/generateConversationTitle";
-import { getCircularReplacer } from "../utils/getCircularReplacer";
-import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
-import { logger, LogLevel } from "../utils/logger";
-import { parseAgentResponse } from "../utils/parseAgentResponse";
+import { getApiKeyForModel, getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
+import { UsageCostResult } from "../utils/interface";
+import { logger, LogLevel, LogLevelType } from "../utils/logger";
+import { parseLLMResponse } from "../utils/parseAgentResponse";
 import { initializeRun } from "../utils/runManager";
 import { buildSystemMessage } from "./buildSystemMessage";
+import { getStoredConversationDataStrins, saveConversationDocument } from "./chatHistory";
+import { getAiAgent } from "./getAiAgent";
+import { parseAgentMessage, ParsedAgentMessage } from "./parseAgentResponseContent";
 
-export const informUserTag = "inform_user";
+export async function agentLoop(consoleInput: string, db: Database, appConfig: AppConfig) {
+  let questionForUser: string = "You can type your query here or exit the program:";
+  let userQuery = consoleInput;
+  let parsedAgentAnswer;
+  let initialConversationQuery;
 
-async function initializeLLM(input: string): Promise<LLM> {
-  const apiKey = await getOrPromptForAPIKey();
+  // each cycle is start of a new conversation when prev one is comelete and finalized
+  //  (stored with all scores, given a title and can be retrieved by retrieval)
+  while (!initialConversationQuery?.cancelled) {
+    if (!userQuery) {
+      initialConversationQuery = await askUserCallback({
+        question: questionForUser,
+      });
+
+      if (initialConversationQuery.cancelled) {
+        logger.info("User cancelled the query");
+        break;
+      }
+      userQuery = initialConversationQuery.answer;
+    }
+    const startTime = Date.now();
+    const conversationId = await createConversation(db, userQuery, startTime);
+
+    // cycle on a conversation until user and agent agree on completion of initial task
+    do {
+      logger.debug("Running agent with user query");
+
+      const agentResponse = await runAgent(
+        userQuery,
+        db,
+        appConfig.model,
+        appConfig.logLevel,
+        conversationId,
+      );
+
+      parsedAgentAnswer = agentResponse.parsedAgentMessage;
+      logger.info(`Agent response received: ${JSON.stringify(parsedAgentAnswer)}`);
+
+      if (parsedAgentAnswer.taskComplete) {
+        logger.info("agent confirms task is complete");
+        userQuery = "";
+        break;
+      }
+
+      if (parsedAgentAnswer.questionToUser) {
+        logger.debug("Agent asked a follow-up question");
+        logger.info(`Question to user: ${parsedAgentAnswer.questionToUser.question}`);
+        userQuery = (await askUserCallback(parsedAgentAnswer.questionToUser)).answer;
+        logger.info(`User answered: ${userQuery}`);
+      } else {
+        const userMessage = await askUserCallback({
+          question: agentResponse.responseContent,
+        });
+        logger.info(`User response: ${JSON.stringify(userMessage)}`);
+        userQuery = userMessage.answer;
+        if (userMessage.cancelled) {
+          // let agent process user intention to exit in next iteration and gracefully complete current task
+          // todo: maybe log something like "saving conversation and exiting"
+          console.log("Saving conversation data and exiting");
+        }
+      }
+    } while (!parsedAgentAnswer?.taskComplete);
+  }
+}
+
+export async function runAgent(
+  input: string,
+  db: Database,
+  model: string,
+  logLevel: LogLevelType,
+  conversationId: number,
+) {
+  logger.debug("Starting runAgent");
+  const startTime = Date.now();
+
+  if (input === "<input_aborted_by_user />") {
+    input = "<service_message>User expressed explicit intent to exit the program.</service_message>";
+  }
+  const apiKey = await getApiKeyForModel(model);
   if (!apiKey) {
-    throw new Error("OpenAI API key not found. Please run the application again to set it up.");
+    logger.error("No API key found");
+    throw new Error("LLM API key not found. Please run the application again to set it up.");
   }
 
-  const llm = new OpenAI({ apiKey, model: LLM_ID });
-  logger.info(`Starting agent with input: ${input}`);
-  return llm;
+  const runDir = initializeRun(input);
+  const config = loadConfig();
+  const contextData = await gatherContextData();
+  const messages = await prepareMessages(input, runDir, contextData, config, db, conversationId);
+  const taskMessageContent =
+    "Now, please process the following user query:\n\n" + "<user_query>\n" + input + "\n</user_query>";
+  logger.debug("Creating conversation in DB");
+  const executeCommandTool = createExecuteCommandTool(db, conversationId);
+  logger.debug("Initializing OpenAI agent");
+  const agent = getAiAgent({
+    apiKey,
+    modelId: model,
+    tools: [executeCommandTool],
+  });
+
+  logger.debug("Executing user task");
+  const { responseContent, parsedAgentMessage, totalCost } = await executeTask(
+    agent,
+    taskMessageContent,
+    db,
+    conversationId,
+    messages,
+    model,
+  );
+
+  const totalTime = Date.now() - startTime;
+  logger.debug(`Task completed in ${totalTime}ms`);
+
+  if (parsedAgentMessage.taskComplete) {
+    logger.debug("Finalizing agent run");
+    await finalizeAgentRun(db, conversationId, totalTime, responseContent, input);
+  }
+
+  return { parsedAgentMessage, responseContent, totalCost };
 }
 
 async function prepareMessages(
-  input: string,
+  userQuery: string,
   runDir: string,
   contextData: DynamicContextData,
   config: object,
+  db: Database,
+  conversationId: number,
 ): Promise<ChatMessage[]> {
+  logger.debug("Building system message");
+  const { memories, chatHistory } = await getStoredConversationDataStrins(userQuery, db, conversationId);
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildSystemMessage(runDir, contextData, config),
+      content: buildSystemMessage(runDir, contextData, config, userQuery, memories, chatHistory),
     },
   ];
-
-  const memorySystemMessage = await buildMemorySystemMessage(input);
-  if (memorySystemMessage) {
-    messages.push(memorySystemMessage);
-  }
 
   return messages;
 }
 
-export function passInfoToUser(message: string) {
-  const regexMatch = message.match(new RegExp(`<${informUserTag}>([\\s\\S]*?)</${informUserTag}>`, "g"));
-  if (regexMatch) {
-    regexMatch.forEach((match) => {
-      const messageContent = match.replace(new RegExp(`</?${informUserTag}>`, "g"), "");
-      console.write(formatAgentMessage(messageContent));
-    });
-  }
-}
-
-async function executeUserTask(
+async function executeTask(
   agent: OpenAIAgent,
-  taskMessageContent: string,
+  userQuery: string,
   db: Database,
   conversationId: number,
-  maxRetries: number = 3,
-): Promise<{
-  responseContent: string;
-  finalResponseText: string;
-  finalResponseDetails: string;
-}> {
-  let tries = 0;
-  let responseContent = "";
-  let finalResponseText = "";
-  let finalResponseDetails = "";
+  messages: ChatMessage[],
+  model: string,
+) {
+  let responseContent: string | null = null;
+  let parsedAgentMessage: ParsedAgentMessage | null = null;
+  let stepNumber = 0;
+  let totalCost = 0;
 
-  while (tries < maxRetries) {
-    let stepNumber = 0;
-    logger.debug(`Executing user task. Try ${tries}`);
+  logger.debug("Starting task execution");
+  logger.debug(
+    "Initial messages:",
+    JSON.stringify(
+      messages.map((m) => m.content.slice(0, 100)),
+      null,
+      2,
+    ),
+  );
 
-    // Execute the task
-    const task = agent.createTask(taskMessageContent);
-    for await (const stepOutput of task as any) {
-      const stepStartTime = Date.now();
-      try {
-        const parsedResponse = parseAgentResponse(stepOutput);
-        logger.debug("step output raw", JSON.stringify(stepOutput, getCircularReplacer(), 2));
-        responseContent = parsedResponse.content;
+  logger.debug("Creating agent task");
+  const task = agent.createTask(userQuery, false, logger.getLevel() === LogLevel.DEBUG, messages);
+
+  logger.debug("Starting task iteration");
+  for await (const stepOutput of task as any) {
+    const stepStartTime = Date.now();
+    try {
+      logger.debug(`Processing step ${stepNumber}`);
+      const parsedResponse = parseLLMResponse(stepOutput);
+      if (parsedResponse.usage) {
+        const costInfo = countUsageCost(parsedResponse.usage, model);
+        totalCost += costInfo.costUSD;
+        logger.debug(
+          `Step cost: $${costInfo.costUSD.toFixed(6)}, Total cost so far: $${totalCost.toFixed(6)}`,
+        );
+      }
+      responseContent = parsedResponse.content;
+
+      if (responseContent) {
+        // Only process and save if there's actual text content
         const stepExecutionTime = Date.now() - stepStartTime;
+        logger.debug(`Step ${stepNumber} execution time: ${stepExecutionTime}ms`);
 
-        await insertAgentStep(
+        logger.debug("Inserting message to DB");
+        await insertMessage(
           db,
           conversationId,
           stepNumber,
@@ -107,91 +222,73 @@ async function executeUserTask(
           MESSAGE_ROLES.AGENT,
         );
 
-        passInfoToUser(responseContent);
-        logger.debug(`Agent step ${stepNumber} output: ${responseContent}`);
-        logger.debug(`Step ${stepNumber} completed. Execution time: ${stepExecutionTime}ms`);
-      } catch (error) {
-        if (error instanceof Error && error.message === "<input_aborted_by_user />") {
-          logger.info("Task aborted by user.");
-          return {
-            responseContent: "Task aborted by user.",
-            finalResponseText: "Task aborted by user.",
-            finalResponseDetails: "",
-          };
+        logger.debug("Parsing agent message");
+        parsedAgentMessage = parseAgentMessage(responseContent);
+
+        if (parsedAgentMessage.informUserMessages.length > 0) {
+          logger.debug("Processing inform user messages");
+          parsedAgentMessage.informUserMessages.forEach((message) => {
+            console.write(formatAgentMessage(message));
+          });
         }
-        logger.error(`Error in agent execution: ${error}`);
-        throw error;
-      } finally {
         stepNumber++;
       }
+    } catch (error) {
+      if (error instanceof Error && error.message === "<input_aborted_by_user />") {
+        logger.info("Task aborted by user");
+        await insertMessage(db, conversationId, stepNumber, "Task aborted by user.", 0, MESSAGE_ROLES.USER);
+      }
+      logger.error(`Error in agent execution: ${error}`);
+      throw error;
     }
-
-    // Parse the response
-    const finalResultMatch = responseContent.match(/<final_result>([\s\S]*?)<\/final_result>/i);
-    const finalResultDetailsMatch = responseContent.match(
-      /<final_result_details>([\s\S]*?)<\/final_result_details>/i,
-    );
-
-    finalResponseText =
-      finalResultMatch && finalResultMatch[1] ? finalResultMatch[1].trim() : responseContent;
-    finalResponseDetails =
-      finalResultDetailsMatch && finalResultDetailsMatch[1] ? finalResultDetailsMatch[1].trim() : "";
-
-    // If we have a valid response, break the loop
-    if (finalResponseText) {
-      break;
-    }
-
-    // Add message for retry
-    if (tries < maxRetries - 1) {
-      const requireActionText =
-        "Your message is not a tool call, final answer and no task is enqueued. Please make one of these actions";
-      agent.chatHistory.push({ role: "user", content: requireActionText });
-    }
-
-    tries++;
   }
 
   return {
-    responseContent,
-    finalResponseText,
-    finalResponseDetails,
+    responseContent: responseContent ?? "",
+    parsedAgentMessage: parsedAgentMessage as any,
+    totalCost,
   };
 }
 
-async function getRelevancy({ messages, toolCalls, conversationData }: any): Promise<number> {
-  // Mock function for relevancy score
-  return 1;
-}
-
-async function getFaithfulness({ messages, toolCalls, conversationData }: any): Promise<number> {
-  // Mock function for faithfulness score
-  return 1;
-}
-
-async function getCorrectness({ messages, toolCalls, conversationData }: any): Promise<number> {
-  // Mock function for correctness score
-  return 1;
-}
-
+/**
+ * Finalizes an agent run by storing results and gathering feedback.
+ *
+ * @param db - Database instance for storing conversation data
+ * @param conversationId - Unique identifier for the conversation
+ * @param totalTime - Total execution time in milliseconds
+ * @param {Object} params - Response data parameters
+ * @param {string} params.rawResponse - Raw response from the agent
+ * @param {string} params.result - Final processed result text
+ * @param {string} [params.details] - Optional additional details about the result
+ * @param input - Original user input that initiated the conversation
+ *
+ * @remarks
+ * - Saves final results to database with evaluation scores and generated title
+ * - Stores full conversation history in vector database for retrieval
+ * - Collects and records user feedback on conversation quality
+ * - Updates conversation metadata including execution time and response metrics
+ */
 async function finalizeAgentRun(
   db: Database,
   conversationId: number,
   totalTime: number,
-  { rawResponse, result, details }: { rawResponse: string; result: string; details: string },
+  finalResponse: string,
   input: string,
 ): Promise<void> {
+  logger.debug("Starting finalization");
   const fullConversation = getAllConversationData(db, conversationId);
-  logger.debug(`Last message raw: ${rawResponse}`);
-  const message = formatAgentMessage(result + "\n\n" + details);
-  console.write(message);
+  logger.debug(`Last message raw: ${finalResponse}`);
 
+  logger.debug("Generating conversation title");
   const title = await generateConversationTitle(fullConversation, {
-    apiKey: await getOrPromptForAPIKey(),
+    apiKey: await getOrPromptForAPIKey(LLM_ID),
     modelName: LLM_ID,
   });
+
+  logger.debug("Getting user evaluation score");
   const userScore = getUserEvaluationScore();
 
+  logger.debug("Updating conversation fields");
   await updateConversationFields(db, {
     conversationId,
     title: await title,
@@ -202,78 +299,35 @@ async function finalizeAgentRun(
     relevancy: await getRelevancy(fullConversation),
     retrievalCount: 0,
     lastRetrieved: null,
-    response: rawResponse,
+    response: finalResponse,
   });
 
+  logger.debug("Saving conversation document");
   await saveConversationDocument(db, conversationId);
+  logger.debug("Finalization complete");
 }
 
-export async function runAgent(input: string, db: Database) {
-  const startTime = Date.now();
+function countUsageCost(usage: Record<string, number>, model: string): UsageCostResult {
+  // Get model pricing from the current model being used
+  const modelConfig = MODEL_PRICES[model] ?? MODEL_PRICES["gpt-4o-mini"]; // fallback to a default model
 
-  const llm = await initializeLLM(input);
-  const runDir = initializeRun(input);
-  const config = loadConfig();
+  // Normalize token counts from different possible field names
+  const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
+  const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
 
-  const contextData = await gatherContextData();
-  const messages = await prepareMessages(input, runDir, contextData, config);
+  // Calculate costs
+  const inputCost = inputTokens * modelConfig.price.input;
+  const outputCost = outputTokens * modelConfig.price.output;
+  const totalCost = inputCost + outputCost;
 
-  const taskMessageContent = "Here is The App's user query:\n\n" + input;
-  const conversationId = await createConversation(db, input, startTime);
-
-  const executeCommandTool = createExecuteCommandTool(db, conversationId);
-  const askUserTool = createAskUserTool(db, conversationId);
-
-  const agent = new OpenAIAgent({
-    llm,
-    tools: [executeCommandTool, askUserTool],
-    verbose: logger.getLevel() === LogLevel.DEBUG,
-    chatHistory: messages,
-  });
-
-  const { responseContent, finalResponseText, finalResponseDetails } = await executeUserTask(
-    agent,
-    taskMessageContent,
-    db,
-    conversationId,
-  );
-
-  const totalTime = Date.now() - startTime;
-
-  await finalizeAgentRun(
-    db,
-    conversationId,
-    totalTime,
-    { rawResponse: responseContent, result: finalResponseText, details: finalResponseDetails },
-    input,
-  );
-
-  return finalResponseText;
-}
-
-async function getUserEvaluationScore() {
-  const userEvaluationNumber = await getUserEvaluation();
-  const score = normalizeUserEvaluationScore(userEvaluationNumber, [1, 5], [0, 2]);
-  return score;
-}
-
-function normalizeUserEvaluationScore(
-  userEvaluationScore: number,
-  initialRange: [number, number] = [1, 5],
-  targetRange: [number, number] = [0, 2],
-): number {
-  const [initialMin, initialMax] = initialRange;
-  const [targetMin, targetMax] = targetRange;
-
-  // Validate input score within initial range
-  if (userEvaluationScore < initialMin || userEvaluationScore > initialMax) {
-    throw new Error(
-      `Score ${userEvaluationScore} is out of the initial range [${initialMin}, ${initialMax}].`,
-    );
-  }
-
-  const normalizedValue =
-    ((userEvaluationScore - initialMin) / (initialMax - initialMin)) * (targetMax - targetMin) + targetMin;
-
-  return normalizedValue;
+  return {
+    costUSD: totalCost,
+    details: {
+      inputTokens,
+      outputTokens,
+      inputCost,
+      outputCost,
+      totalCost,
+    },
+  };
 }

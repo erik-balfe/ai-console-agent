@@ -1,32 +1,35 @@
 import chalk from "chalk";
 import { config } from "dotenv";
 import { APIError } from "openai";
-import { runAgent } from "./ai/agent";
+import { agentLoop } from "./ai/agent";
 import { parseArguments, printHelp } from "./cli/interface";
 import { MAX_INPUT_LENGTH } from "./constants";
 import { deleteAPIKey } from "./utils/apiKeyManager";
 import { loadConfig, saveConfig } from "./utils/config";
-import { getOrPromptForAPIKey } from "./utils/getOrPromptForAPIKey";
+import { getOrPromptForAPIKey, getProviderFromModel } from "./utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "./utils/logger";
 
-import { initializeDatabase, printDatabaseContents } from "./utils/database";
+import { initializeDatabase } from "./utils/database";
 
 config();
 
 async function main() {
   const db = await initializeDatabase();
   logger.info("Database initialized successfully");
-  printDatabaseContents(db);
-  const startTime = Date.now();
 
   try {
-    const { input, resetKey, showHelp, setLogLevel, getLogLevel } = parseArguments(Bun.argv);
+    const { input, resetKey, showHelp, setLogLevel, getLogLevel, model } = parseArguments(Bun.argv);
 
     const { appConfig, userPrefs } = loadConfig();
 
     if (showHelp) {
       printHelp();
       return;
+    }
+
+    // maybe needs persisting
+    if (model) {
+      appConfig.model = model;
     }
 
     if (setLogLevel !== undefined) {
@@ -46,19 +49,15 @@ async function main() {
     logger.setLevel(appConfig.logLevel);
 
     if (resetKey) {
-      deleteAPIKey();
+      const provider = getProviderFromModel(appConfig.model);
+      deleteAPIKey(provider);
       console.log(
         chalk.green("API key has been deleted. You will be prompted for a new key on the next run."),
       );
       return;
     }
 
-    if (!input) {
-      console.log(chalk.yellow("No input received. Use --help to see usage instructions."));
-      return;
-    }
-
-    const apiKey = await getOrPromptForAPIKey();
+    const apiKey = await getOrPromptForAPIKey(appConfig.model);
 
     logger.debug(
       chalk.cyan("API key:", apiKey.substring(0, 5) + "..." + apiKey.substring(apiKey.length - 5)),
@@ -70,19 +69,17 @@ async function main() {
       );
       return;
     }
-
     try {
-      const agentResponse = await runAgent(input, db);
-      if (agentResponse === "Task aborted by user.") {
-        console.log(chalk.yellow(agentResponse));
-        return;
-      }
+      logger.debug("Starting user interaction loop");
+      let userQuery = input;
+      logger.info(`Initial user query: ${userQuery}`);
+      await agentLoop(userQuery, db, appConfig);
     } catch (error) {
       if (error instanceof APIError) {
         if (error.status === 401) {
           console.error(chalk.red("Invalid OpenAI API key." + error.message));
-          deleteAPIKey();
-          await getOrPromptForAPIKey();
+          deleteAPIKey(appConfig.model);
+          await getOrPromptForAPIKey(appConfig.model);
         }
       }
       console.error(chalk.red("Error running agent:"), error);

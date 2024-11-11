@@ -1,5 +1,6 @@
 import { OpenAIEmbedding } from "llamaindex";
-import { getAPIKey } from "./apiKeyManager";
+import { LLM_ID } from "../constants";
+import { getOrPromptForAPIKey } from "./getOrPromptForAPIKey";
 import { logger } from "./logger";
 
 // const embeddingModelId = ALL_OPENAI_EMBEDDING_MODELS["text-embedding-3-small"];
@@ -12,7 +13,7 @@ const embeddingModelId = "text-embedding-3-small";
 let embeddingModel: OpenAIEmbedding | null = null;
 
 export async function initializeEmbeddingModel(): Promise<void> {
-  const apiKey = getAPIKey();
+  const apiKey = await getOrPromptForAPIKey(LLM_ID);
   if (!apiKey) {
     throw new Error("OpenAI API key not found. Please set up your API key.");
   }

@@ -1,3 +1,5 @@
+import { AVAILABLE_MODELS } from "../constants";
+
 export interface AgentMessage {
   role: "user" | "agent" | "system";
   content: string;
@@ -11,4 +13,19 @@ export interface ToolCall {
   output: string;
   timestamp: number;
   executionTime: number;
+}
+
+export type ModelShortName = keyof typeof AVAILABLE_MODELS;
+export type ModelId = (typeof AVAILABLE_MODELS)[ModelShortName];
+export type ValidModel = ModelId | ModelShortName;
+
+export interface UsageCostResult {
+  costUSD: number;
+  details: {
+    inputTokens: number;
+    outputTokens: number;
+    inputCost: number;
+    outputCost: number;
+    totalCost: number;
+  };
 }

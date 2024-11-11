@@ -16,7 +16,7 @@ let vectorStoreIndex: VectorStoreIndex | null = null;
 export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
   const storageContext = await storageContextFromDefaults({ persistDir: VECTOR_STORE_PATH });
 
-  const apiKey = await getOrPromptForAPIKey();
+  const apiKey = await getOrPromptForAPIKey(LLM_ID);
   let index: VectorStoreIndex;
 
   try {
