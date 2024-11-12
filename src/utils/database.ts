@@ -3,14 +3,11 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "path";
 import { MessageRole } from "../constants";
+import { getUserHomeDir } from "./getUserHomeDir";
 import { AgentMessage, ToolCall } from "./interface";
 import { logger } from "./logger";
 
-const DB_PATH = path.join(
-  process.env.HOME || process.env.USERPROFILE || "",
-  ".ai-console-agent",
-  "chat_history.db",
-);
+const DB_PATH = path.join(getUserHomeDir(), ".ai-console-agent", "chat_history.db");
 
 export interface AgentStep {
   id: number;
@@ -26,6 +23,7 @@ const LATEST_DB_VERSION = 6;
 
 export async function initializeDatabase(): Promise<Database> {
   const dbDir = path.dirname(DB_PATH);
+
   if (!existsSync(dbDir)) {
     try {
       await mkdir(dbDir, { recursive: true });

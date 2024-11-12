@@ -1,4 +1,5 @@
 import path from "path";
+import { getUserHomeDir } from "./utils/getUserHomeDir";
 
 export const LLM_ID = "gpt-4o-mini";
 
@@ -22,10 +23,8 @@ export const CURRENT_RUN_FILE_NAME = "current_run_id.txt";
 export const MAX_INPUT_LENGTH = 10000;
 export const AGENT_CONTEXT_ALLOCATION = "60000";
 
-export const CONFIG_DIR_PATH = path.join(
-  process.env.HOME || process.env.USERPROFILE || "",
-  ".ai-console-agent",
-);
+export const CONFIG_DIR_PATH = path.join(getUserHomeDir(), ".ai-console-agent");
+
 export const APP_CONFIG_FILE_NAME = "app_config.json";
 export const USER_PREFS_FILE_NAME = "user_preferences.json";
 export const APP_CONFIG_FILE_PATH = path.join(CONFIG_DIR_PATH, APP_CONFIG_FILE_NAME);

@@ -1,6 +1,6 @@
 {
   "name": "ai-console-agent",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "engines": {
     "bun": "1.1.34"
   },
