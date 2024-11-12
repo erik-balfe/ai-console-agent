@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { config } from "dotenv";
 import { APIError } from "openai";
 import { agentLoop } from "./ai/agent";
-import { parseArguments, printHelp } from "./cli/interface";
+import { formatApiKey, getAllStoredKeys, parseArguments, printHelp } from "./cli/interface";
 import { MAX_INPUT_LENGTH } from "./constants";
 import { deleteAPIKey } from "./utils/apiKeyManager";
 import { loadConfig, saveConfig } from "./utils/config";
@@ -17,12 +17,23 @@ async function main() {
   let db;
 
   try {
-    const { input, resetKey, showHelp, setLogLevel, getLogLevel, model } = parseArguments(Bun.argv);
+    const { input, resetKey, showHelp, setLogLevel, getLogLevel, model, showKeys } = parseArguments(Bun.argv);
 
     const { appConfig, userPrefs } = loadConfig();
 
     if (showHelp) {
       printHelp();
+      return;
+    }
+
+    if (showKeys) {
+      const keys = getAllStoredKeys();
+      console.log(chalk.cyan("\nStored API Keys:"));
+      for (const [provider, key] of Object.entries(keys)) {
+        console.log(
+          chalk.yellow(`${provider}: `) + (key ? chalk.green(formatApiKey(key)) : chalk.red("Not set")),
+        );
+      }
       return;
     }
 

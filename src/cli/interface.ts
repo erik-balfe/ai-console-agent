@@ -1,9 +1,9 @@
-import { input, select, Separator } from "@inquirer/prompts";
+import { select, Separator } from "@inquirer/prompts";
 import chalk from "chalk";
-import { stdin, stdout } from "node:process";
+import { stdin as input, stdout as output } from "node:process";
 import readline from "node:readline/promises";
-import { AVAILABLE_MODELS } from "../constants";
-import { logger, LogLevel, LogLevelType } from "../utils/logger";
+import { API_KEY_PROMPTS, APIProvider, AVAILABLE_MODELS } from "../constants";
+import { LogLevel, LogLevelType } from "../utils/logger";
 import { resolveModelId } from "../utils/modelUtils";
 
 export interface ParsedArguments {
@@ -12,22 +12,16 @@ export interface ParsedArguments {
   showHelp: boolean;
   setLogLevel?: LogLevelType;
   getLogLevel: boolean;
-}
-export interface ParsedArguments {
-  input: string;
-  resetKey: boolean;
-  showHelp: boolean;
-  setLogLevel?: LogLevelType;
-  getLogLevel: boolean;
   model?: string;
+  showKeys: boolean;
 }
-
 export function parseArguments(args: string[]): ParsedArguments {
   const parsedArgs: ParsedArguments = {
     input: "",
     resetKey: false,
     showHelp: false,
     getLogLevel: false,
+    showKeys: false,
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -39,6 +33,9 @@ export function parseArguments(args: string[]): ParsedArguments {
       case "--help":
       case "-h":
         parsedArgs.showHelp = true;
+        break;
+      case "--show-keys":
+        parsedArgs.showKeys = true;
         break;
       case "--get-log-level":
         parsedArgs.getLogLevel = true;
@@ -82,6 +79,7 @@ export function printHelp() {
   console.log("  --log-level=<level>         Set the log level (DEBUG, INFO, WARN, ERROR)");
   console.log("  --get-log-level             Display the current log level");
   console.log("  --model=<model>             Set the AI model to use (can be model ID or shortname)");
+  console.log("  --show-keys                 Display stored API keys in a safe format");
 
   console.log("\nAvailable Models:");
 
@@ -132,6 +130,7 @@ export function printHelp() {
   console.log("  → Shows current logging verbosity");
 }
 
+// todo: fix after moving to another cli for itecraccation with user
 export async function displayOptionsAndGetInput(
   question: string,
   options: string[],
@@ -171,45 +170,82 @@ export async function displayOptionsAndGetInput(
 }
 
 export async function getFreeformInput(prompt: string, isPassword: boolean = false): Promise<string> {
-  // First check if we're in a non-interactive environment
-  const isNonInteractive = !process.stdin.isTTY || process.env.NON_INTERACTIVE;
-  logger.debug(`isNonInteractive: ${isNonInteractive}`);
-  // if (isNonInteractive) {
-  //   // Check for environment variable
-  //   const envVar = `AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`;
-  //   const envValue = process.env[envVar];
-  //   if (envValue) {
-  //     logger.debug(`Using value from environment variable ${envVar}`);
-  //     return envValue;
-  //   }
-
-  //   throw new Error(
-  //     `Running in non-interactive mode. Please set ${envVar} environment variable.\n` +
-  //       `Example: export ${envVar}=your-api-key`,
-  //   );
-  // }
-
-  // try {
-  //   // Try inquirer first
-  //   if (isPassword) {
-  //     const result = await password({ message: prompt, mask: "*" });
-  //     return result;
-  //   }
-  //   return await input({ message: prompt });
-  // } catch (error) {
-  // logger.debug("Interactive prompt failed, falling back to basic readline:", error);
-
-  // Fallback to basic readline
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = await rl.question(`${prompt}: `);
-    rl.close();
-    return answer;
-  } catch (readlineError) {
-    logger.error("Basic readline also failed:", readlineError);
-    throw new Error(
-      `Cannot read input interactively. Please set ${`AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`} environment variable`,
-    );
+  if (!isPassword) {
+    const rl = readline.createInterface({ input, output });
+    try {
+      return await rl.question(`${prompt}: `);
+    } finally {
+      rl.close();
+    }
   }
-  // }
+
+  // Password input with masking
+  return new Promise((resolve) => {
+    let password = "";
+
+    output.write(`${prompt}: `);
+
+    const stdin = process.stdin;
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf-8");
+
+    const onData = (char: string) => {
+      char = char.toString();
+
+      // Control-C
+      if (char === "\u0003") {
+        process.exit();
+      }
+
+      // Enter key
+      if (char === "\r" || char === "\n") {
+        output.write("\n");
+        stdin.setRawMode(false);
+        stdin.pause();
+        stdin.removeListener("data", onData);
+        resolve(password);
+        return;
+      }
+
+      // Backspace
+      if (char === "\u0008" || char === "\u007f") {
+        if (password.length > 0) {
+          password = password.slice(0, -1);
+          output.write("\b \b");
+        }
+        return;
+      }
+
+      // Regular character
+      password += char;
+      output.write("*");
+    };
+
+    stdin.on("data", onData);
+  });
+}
+
+export function formatApiKey(key: string): string {
+  if (!key) return "Not set";
+  return `${key.substring(0, 5)}...${key.substring(key.length - 5)}`;
+}
+
+export function getAllStoredKeys(): Record<APIProvider, string | null> {
+  const keys: Record<APIProvider, string | null> = {
+    OPENAI: null,
+    GROQ: null,
+    ANTHROPIC: null,
+  };
+
+  for (const provider of Object.keys(API_KEY_PROMPTS) as APIProvider[]) {
+    try {
+      const key = Bun.env[`${provider}_API_KEY`] || null;
+      keys[provider] = key;
+    } catch (error) {
+      console.error(`Error reading ${provider} key:`, error);
+    }
+  }
+
+  return keys;
 }
