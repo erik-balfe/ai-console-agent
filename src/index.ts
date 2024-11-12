@@ -4,7 +4,7 @@ import { APIError } from "openai";
 import { agentLoop } from "./ai/agent";
 import { formatApiKey, getAllStoredKeys } from "./cli/getAllKeys";
 import { parseArguments, printHelp } from "./cli/interface";
-import { MAX_INPUT_LENGTH } from "./constants";
+import { EMBEDDINGS_MODEL_ID, MAX_INPUT_LENGTH } from "./constants";
 import { deleteAPIKey } from "./utils/apiKeyManager";
 import { loadConfig, saveConfig } from "./utils/config";
 import { initializeDatabase } from "./utils/database";
@@ -45,6 +45,11 @@ async function main() {
       appConfig.model = model;
     }
 
+    await getOrPromptForAPIKey(EMBEDDINGS_MODEL_ID, {
+      prePromptText:
+        "Please enter your OpenAI API key. It is used for embeddings and will consume small amount of tokens",
+    });
+
     logger.info(`running using model "${appConfig.model}"`);
 
     logger.setLevel(appConfig.logLevel);
@@ -62,7 +67,7 @@ async function main() {
 
     if (resetKey) {
       const provider = getProviderFromModel(appConfig.model);
-      deleteAPIKey(provider);
+      await deleteAPIKey(provider);
       console.log(
         chalk.green("API key has been deleted. You will be prompted for a new key on the next run."),
       );
@@ -90,8 +95,8 @@ async function main() {
     } catch (error) {
       if (error instanceof APIError) {
         if (error.status === 401) {
-          console.error(chalk.red("Invalid OpenAI API key." + error.message));
-          deleteAPIKey(appConfig.model);
+          console.error(chalk.red("Invalid API key." + error.message));
+          await deleteAPIKey(appConfig.model);
           await getOrPromptForAPIKey(appConfig.model);
         }
       }

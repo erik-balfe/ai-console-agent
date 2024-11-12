@@ -1,4 +1,4 @@
-import { MODEL_PRICES } from "../constants";
+import { MODELS } from "../constants";
 
 interface UsageCostResult {
   costUSD: number;
@@ -27,7 +27,7 @@ export function countUsageCost(
   },
   modelId: string,
 ): UsageCostResult {
-  const modelConfig = MODEL_PRICES[modelId];
+  const modelConfig = MODELS[modelId];
   if (!modelConfig) {
     throw new Error(`Unknown model ID: ${modelId}`);
   }

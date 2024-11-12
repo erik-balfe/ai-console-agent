@@ -1,7 +1,7 @@
 import type { ChatMessage } from "llamaindex";
 import { OpenAIAgent } from "llamaindex";
 import { DynamicContextData, gatherContextData } from "../cli/contextUtils";
-import { LLM_ID, MESSAGE_ROLES, MODEL_PRICES } from "../constants";
+import { MESSAGE_ROLES, MODELS, WEAK_MODEL_ID } from "../constants";
 import { getCorrectness, getFaithfulness, getRelevancy } from "../features/userScore/evaluations/evaluations";
 import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationScore";
 import { askUserCallback } from "../tools/askUser";
@@ -16,7 +16,7 @@ import {
 } from "../utils/database";
 import { formatAgentMessage } from "../utils/formatting";
 import { generateConversationTitle } from "../utils/generateConversationTitle";
-import { getApiKeyForModel, getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
+import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
 import { UsageCostResult } from "../utils/interface";
 import { logger, LogLevel, LogLevelType } from "../utils/logger";
 import { parseLLMResponse } from "../utils/parseLLMResponse";
@@ -107,7 +107,7 @@ export async function runAgent(
   if (input === "<input_aborted_by_user />") {
     input = "<service_message>User expressed explicit intent to exit the program.</service_message>";
   }
-  const apiKey = await getApiKeyForModel(model);
+  const apiKey = await getOrPromptForAPIKey(model);
   if (!apiKey) {
     logger.error("No API key found");
     throw new Error("LLM API key not found. Please run the application again to set it up.");
@@ -278,8 +278,8 @@ async function finalizeAgentRun(
 
   logger.debug("Generating conversation title");
   const title = await generateConversationTitle(fullConversation, {
-    apiKey: await getOrPromptForAPIKey(LLM_ID),
-    modelName: LLM_ID,
+    apiKey: await getOrPromptForAPIKey(WEAK_MODEL_ID),
+    modelName: WEAK_MODEL_ID,
   });
 
   logger.debug("Getting user evaluation score");
@@ -306,7 +306,7 @@ async function finalizeAgentRun(
 
 function countUsageCost(usage: Record<string, number>, model: string): UsageCostResult {
   // Get model pricing from the current model being used
-  const modelConfig = MODEL_PRICES[model] ?? MODEL_PRICES["gpt-4o-mini"]; // fallback to a default model
+  const modelConfig = MODELS[model] ?? MODELS["gpt-4o-mini"]; // fallback to a default model
 
   // Normalize token counts from different possible field names
   const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;

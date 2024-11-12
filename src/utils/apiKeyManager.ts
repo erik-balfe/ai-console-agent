@@ -127,9 +127,9 @@ class StorageManager {
 const storageManager = new StorageManager();
 
 // Export the methods
-export const getAPIKey = (provider: APIProvider) => storageManager.getAPIKey(provider);
-export const storeAPIKey = (apiKey: string, provider: APIProvider) =>
+export const getAPIKey = async (provider: APIProvider) => storageManager.getAPIKey(provider);
+export const storeAPIKey = async (apiKey: string, provider: APIProvider) =>
   storageManager.storeAPIKey(apiKey, provider);
-export const deleteAPIKey = (modelId: string) => storageManager.deleteAPIKey(modelId);
-export const checkStorageAvailability = () => storageManager.checkStorageAvailability();
-export const getStorageDiagnostics = () => storageManager.getStorageDiagnostics();
+export const deleteAPIKey = async (modelId: string) => storageManager.deleteAPIKey(modelId);
+export const checkStorageAvailability = async () => storageManager.checkStorageAvailability();
+export const getStorageDiagnostics = async () => storageManager.getStorageDiagnostics();

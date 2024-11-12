@@ -7,7 +7,7 @@ import {
   storageContextFromDefaults,
   VectorStoreIndex,
 } from "llamaindex";
-import { EMBEDDINGS_MODEL_ID, LLM_ID, VECTOR_STORE_PATH } from "../../constants";
+import { EMBEDDINGS_MODEL_ID, VECTOR_STORE_PATH, WEAK_MODEL_ID } from "../../constants";
 import { getOrPromptForAPIKey } from "../../utils/getOrPromptForAPIKey";
 import { logger } from "../../utils/logger";
 
@@ -16,7 +16,8 @@ let vectorStoreIndex: VectorStoreIndex | null = null;
 export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
   const storageContext = await storageContextFromDefaults({ persistDir: VECTOR_STORE_PATH });
 
-  const apiKey = await getOrPromptForAPIKey(LLM_ID);
+  const embeddingProviderApiKey = await getOrPromptForAPIKey(EMBEDDINGS_MODEL_ID);
+  const weakModelApiKey = await getOrPromptForAPIKey(WEAK_MODEL_ID);
   let index: VectorStoreIndex;
 
   try {
@@ -24,8 +25,8 @@ export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
     index = await VectorStoreIndex.init({
       storageContext,
       serviceContext: serviceContextFromDefaults({
-        embedModel: new OpenAIEmbedding({ apiKey, model: EMBEDDINGS_MODEL_ID }),
-        llm: new OpenAI({ apiKey, model: LLM_ID }),
+        embedModel: new OpenAIEmbedding({ apiKey: embeddingProviderApiKey, model: EMBEDDINGS_MODEL_ID }),
+        llm: new OpenAI({ apiKey: weakModelApiKey, model: WEAK_MODEL_ID }),
       }),
     });
     logger.debug("Existing index loaded successfully");

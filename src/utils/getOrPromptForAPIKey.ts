@@ -1,12 +1,18 @@
 import chalk from "chalk";
 import { getFreeformInput } from "../cli/interface";
-import { API_KEY_PREFIXES, API_KEY_PROMPTS, APIProvider } from "../constants";
+import { API_KEY_PREFIXES, API_KEY_PROMPTS, APIProvider, EMBEDDINGS_MODEL_ID } from "../constants";
 import { getAPIKey, storeAPIKey } from "./apiKeyManager";
 import { logger } from "./logger";
 
 const MAX_RETRIES = 5;
 
-export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = false): Promise<string> {
+interface GetAPIKeyOptions {
+  forceNew?: boolean;
+  prePromptText?: string;
+}
+
+export async function getOrPromptForAPIKey(modelId: string, options: GetAPIKeyOptions = {}): Promise<string> {
+  const { forceNew = false, prePromptText } = options;
   const provider = getProviderFromModel(modelId);
   let retries = 0;
 
@@ -32,7 +38,11 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
       if (!apiKey) {
         try {
           logger.debug(`Prompting user for ${provider} API key`);
-          console.log(chalk.yellow(`${provider} API key not found or invalid.`));
+
+          const text = prePromptText
+            ? chalk.yellow(prePromptText)
+            : `${provider} API key not found or invalid.`;
+          console.log(chalk.yellow(text));
           apiKey = await getFreeformInput(API_KEY_PROMPTS[provider], true);
         } catch (inputError) {
           if (inputError.message.includes("non-interactive mode")) {
@@ -72,6 +82,17 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
   process.exit(1);
 }
 
+export async function getApiKeyForModel(modelId: string): Promise<string> {
+  const apiKey = await getOrPromptForAPIKey(modelId);
+
+  if (!apiKey) {
+    logger.error(`No ${modelId} API key found`);
+    throw new Error(`${modelId} API key not found. Please run the application again to set it up.`);
+  }
+
+  return apiKey;
+}
+
 function isValidAPIKey(apiKey: string, provider: APIProvider): boolean {
   return apiKey.trim() !== "" && apiKey.startsWith(API_KEY_PREFIXES[provider]);
 }
@@ -82,18 +103,8 @@ export function getProviderFromModel(modelId: string): APIProvider {
   if (modelId.startsWith("gpt")) result = "OPENAI";
   if (modelId.startsWith("llama")) result = "GROQ";
   if (modelId.startsWith("claude")) result = "ANTHROPIC";
+  if (EMBEDDINGS_MODEL_ID === modelId) result = "OPENAI";
   if (!result) throw new Error(`Unsupported model ID: ${modelId}`);
   logger.debug(`Model ID ${modelId} matches a supported API provider, "${result}"`);
   return result;
-}
-
-export async function getApiKeyForModel(modelId: string): Promise<string> {
-  const apiKey = await getOrPromptForAPIKey(modelId);
-
-  if (!apiKey) {
-    logger.error(`No ${modelId} API key found`);
-    throw new Error(`${modelId} API key not found. Please run the application again to set it up.`);
-  }
-
-  return apiKey;
 }

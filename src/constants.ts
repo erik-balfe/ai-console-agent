@@ -1,8 +1,6 @@
 import path from "path";
 import { getUserHomeDir } from "./utils/getUserHomeDir";
 
-export const LLM_ID = "gpt-4o-mini";
-
 export const API_KEY_PROMPTS = {
   OPENAI: "Please enter your OpenAI API key: ",
   GROQ: "Please enter your Groq API key: ",
@@ -30,6 +28,7 @@ export const USER_PREFS_FILE_NAME = "user_preferences.json";
 export const APP_CONFIG_FILE_PATH = path.join(CONFIG_DIR_PATH, APP_CONFIG_FILE_NAME);
 export const USER_PREFS_FILE_PATH = path.join(CONFIG_DIR_PATH, USER_PREFS_FILE_NAME);
 export const EMBEDDINGS_MODEL_ID = "text-embedding-3-small";
+export const EMBEDDING_MODELS = [EMBEDDINGS_MODEL_ID];
 export const VECTOR_STORE_PATH = path.join(CONFIG_DIR_PATH, "vector_store");
 
 export const MESSAGE_ROLES = {
@@ -69,7 +68,7 @@ interface AIModelConfig {
   default?: boolean;
 }
 
-export const MODEL_PRICES: Record<string, AIModelConfig> = {
+export const MODELS: Record<string, AIModelConfig> = {
   "gpt-4o-mini": {
     id: "gpt-4o-mini",
     friendlyName: "openAIGpt4oMiniModel",
@@ -171,3 +170,5 @@ export const CONTEXT_ALLOCATION = {
     maxChars: 20000,
   },
 };
+
+export const WEAK_MODEL_ID = "gpt-4o-mini";
