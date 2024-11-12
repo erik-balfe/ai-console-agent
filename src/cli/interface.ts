@@ -10,22 +10,16 @@ export interface ParsedArguments {
   showHelp: boolean;
   setLogLevel?: LogLevelType;
   getLogLevel: boolean;
-}
-export interface ParsedArguments {
-  input: string;
-  resetKey: boolean;
-  showHelp: boolean;
-  setLogLevel?: LogLevelType;
-  getLogLevel: boolean;
   model?: string;
+  showKeys: boolean;
 }
-
 export function parseArguments(args: string[]): ParsedArguments {
   const parsedArgs: ParsedArguments = {
     input: "",
     resetKey: false,
     showHelp: false,
     getLogLevel: false,
+    showKeys: false,
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -37,6 +31,9 @@ export function parseArguments(args: string[]): ParsedArguments {
       case "--help":
       case "-h":
         parsedArgs.showHelp = true;
+        break;
+      case "--show-keys":
+        parsedArgs.showKeys = true;
         break;
       case "--get-log-level":
         parsedArgs.getLogLevel = true;
@@ -80,6 +77,7 @@ export function printHelp() {
   console.log("  --log-level=<level>         Set the log level (DEBUG, INFO, WARN, ERROR)");
   console.log("  --get-log-level             Display the current log level");
   console.log("  --model=<model>             Set the AI model to use (can be model ID or shortname)");
+  console.log("  --show-keys                 Display stored API keys in a safe format");
 
   console.log("\nAvailable Models:");
 
@@ -130,6 +128,7 @@ export function printHelp() {
   console.log("  → Shows current logging verbosity");
 }
 
+// todo: fix after moving to another cli for itecraccation with user
 export async function displayOptionsAndGetInput(
   question: string,
   options: string[],

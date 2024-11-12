@@ -12,7 +12,7 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
 
   while (retries < MAX_RETRIES) {
     try {
-      let apiKey = forceNew ? null : getAPIKey(provider);
+      let apiKey = forceNew ? null : await getAPIKey(provider);
 
       if (apiKey) {
         logger.debug(`${provider} API key found in keyring`);
@@ -30,10 +30,17 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
       }
 
       if (!apiKey) {
-        logger.debug(`Prompting user for ${provider} API key`);
-        console.log(chalk.yellow(`${provider} API key not found or invalid.`));
-        apiKey = await getFreeformInput(API_KEY_PROMPTS[provider], true);
-
+        try {
+          logger.debug(`Prompting user for ${provider} API key`);
+          console.log(chalk.yellow(`${provider} API key not found or invalid.`));
+          apiKey = await getFreeformInput(API_KEY_PROMPTS[provider], true);
+        } catch (inputError) {
+          if (inputError.message.includes("non-interactive mode")) {
+            console.error(chalk.red(inputError.message));
+            process.exit(1);
+          }
+          throw inputError;
+        }
         if (!isValidAPIKey(apiKey, provider)) {
           logger.debug(`Invalid ${provider} API key provided by user`);
           console.error(
@@ -45,7 +52,7 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
           continue;
         }
 
-        storeAPIKey(apiKey, provider);
+        await storeAPIKey(apiKey, provider);
         logger.debug(`New ${provider} API key stored successfully`);
         console.log(chalk.green(`${provider} API key has been securely stored.`));
       }

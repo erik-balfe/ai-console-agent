@@ -159,16 +159,15 @@ For detailed information about the database structure and data flow, please refe
 
 2. **Interactive Commands**:
 
-   - Interactive commands (like 'git rebase -i') are not supported and may cause the program to hang
+   - Interactive commands (like 'git rebase -i') are not supported to be run by ai-console-agent and may cause the program to hang
    - The agent is instructed to avoid such commands and complete tasks in non-interactive mode
 
-3. **Installation and Deployment**:
+3. **Installation and SSH Usage**:
 
-   - Quick installation method (curl-based install) is temporarily broken due to Bun bundling issues with dependency imports
-   - Current workaround requires manual installation:
-     - Install Bun
-     - Install program dependencies
-     - Run the program from its directory
+   - The program can be installed and run on any system that supports Bun runtime
+   - Terminal interactions (like entering API keys) require a local terminal with full TTY support
+   - When accessing the program through SSH, terminal-based interactions will not function properly due to SSH terminal limitations
+   - For remote systems, install and configure the program directly on the target machine rather than accessing it through SSH
 
 4. **System Integration**:
    - Sudo commands don't function properly
