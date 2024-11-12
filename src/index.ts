@@ -14,7 +14,7 @@ import { initializeDatabase } from "./utils/database";
 config();
 
 async function main() {
-  const db = await initializeDatabase();
+  let db;
 
   try {
     const { input, resetKey, showHelp, setLogLevel, getLogLevel, model } = parseArguments(Bun.argv);
@@ -56,6 +56,7 @@ async function main() {
       return;
     }
 
+    db = await initializeDatabase();
     const apiKey = await getOrPromptForAPIKey(appConfig.model);
 
     logger.debug(
