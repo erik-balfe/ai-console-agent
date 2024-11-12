@@ -1,5 +1,6 @@
 import { MetadataMode, VectorStoreIndex } from "llamaindex";
 import { addConversationDocument, initializeVectorStoreIndex } from "../ai/retrieval/vectorStore";
+import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
 import { ConversationMetadata, Database, getAllConversationData } from "../utils/database";
 import { logger } from "../utils/logger";
 import { strigifyFullConversation } from "../utils/strigifyFullConversation";
@@ -103,10 +104,56 @@ export async function getStoredConversationDataStrins(
 
   if (!relevantContext.length) {
     logger.debug("No relevant context found for the current query");
-    // return null;
   }
 
-  const memories = relevantContext.map((item) => `<memory>${item}</memory>`).join("\n\n");
+  // Handle memories truncation
+  const memoriesRaw = relevantContext.map((item) => `<memory>${item}</memory>`).join("\n\n");
+  const { truncatedText: memoriesTruncated, wasLimit: memoriesLimit } = truncateText(
+    memoriesRaw,
+    CONTEXT_ALLOCATION.memories,
+  );
 
-  return { memories, chatHistory: stringifiedConversation };
+  if (memoriesLimit) {
+    logger.warn(memoriesLimit);
+  }
+
+  // Handle chat history truncation
+  const { truncatedText: chatHistoryTruncated, wasLimit: chatHistoryLimit } = truncateText(
+    stringifiedConversation,
+    CONTEXT_ALLOCATION.chatHistory,
+  );
+
+  if (chatHistoryLimit) {
+    logger.warn(chatHistoryLimit);
+  }
+
+  return {
+    memories: memoriesTruncated,
+    chatHistory: chatHistoryTruncated,
+  };
+}
+
+function truncateText(
+  text: string,
+  limits: ContextAllocationItem,
+): {
+  truncatedText: string;
+  wasLimit?: string;
+} {
+  const { maxChars } = limits;
+
+  if (text.length <= maxChars) {
+    return { truncatedText: text };
+  }
+
+  // For chat history, we might want to keep more recent messages
+  // So we'll take more from the end than the beginning
+  const endChars = Math.floor(maxChars * 0.7); // 70% from the end
+  const startChars = maxChars - endChars;
+
+  const truncated = `${text.slice(0, startChars)}\n...[TRUNCATED]...\n${text.slice(-endChars)}`;
+  return {
+    truncatedText: truncated,
+    wasLimit: `Text was truncated from ${text.length} to ${truncated.length} characters`,
+  };
 }

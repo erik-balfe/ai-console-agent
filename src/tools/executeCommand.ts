@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
 import { displayOptionsAndGetInput } from "../cli/interface";
+import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
 import { Database } from "../utils/database";
 import { logger } from "../utils/logger";
 import { runShellCommand } from "../utils/runShellCommand";
@@ -28,12 +29,25 @@ const executeCommandCallback = async (params: ExecuteCommandParams): Promise<str
   try {
     const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
     logger.info(`Agent run command:\n$${command}\n`);
+
     const output = stderr || stdout;
-    logger.debug("output:", output);
-    const shortOutput = formatShortOutput(output);
-    logger.debug("shortOutput:", shortOutput);
-    logger.info(`Agent got command output:\n${shortOutput}\n`);
-    return JSON.stringify({ stdout, stderr });
+    const { truncatedOutput, wasLimit } = truncateCommandOutput(output, CONTEXT_ALLOCATION.toolOutput);
+
+    if (wasLimit) {
+      logger.warn(wasLimit);
+    }
+
+    logger.debug("truncated output:", truncatedOutput);
+    logger.info(`Agent got command output:\n${truncatedOutput}\n`);
+    return JSON.stringify({
+      stdout: truncatedOutput,
+      stderr,
+      ...(wasLimit && {
+        truncated: true,
+        originalLength: output.length,
+        truncatedLength: truncatedOutput.length,
+      }),
+    });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return `Failed to execute command: ${errorMessage}`;
@@ -45,8 +59,9 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
 
   return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
     name: "executeCommand",
-    description:
-      "Execute a shell command on the user's host system. Commands that suppose to be interactive (like usual 'git commit') are not supported and must be strongly avoided.",
+    description: `Execute a shell command on the user's host system. Commands that suppose to be interactive (like usual 'git commit') are not supported and must be strongly avoided.
+       Note: Command output is limited to ${CONTEXT_ALLOCATION.toolOutput.maxTokens} tokens (approximately ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters).
+       For commands that might produce large output, consider using more specific commands or adding filters (grep, head, tail, etc.).`,
     parameters: {
       type: "object",
       properties: {
@@ -79,4 +94,25 @@ export function formatShortOutput(longText: string, numLines: number = 2, assume
   } else {
     return `${longText.slice(0, assumedLineLength)}...${longText.slice(-assumedLineLength)}`;
   }
+}
+
+function truncateCommandOutput(
+  output: string,
+  limits: ContextAllocationItem,
+): {
+  truncatedOutput: string;
+  wasLimit?: string;
+} {
+  const { maxChars } = limits;
+
+  if (output.length <= maxChars) {
+    return { truncatedOutput: output };
+  }
+
+  // If output is too long, truncate it and format it
+  const truncated = formatShortOutput(output, 2, maxChars / 4);
+  return {
+    truncatedOutput: truncated,
+    wasLimit: `Output was truncated from ${output.length} to ${truncated.length} characters`,
+  };
 }

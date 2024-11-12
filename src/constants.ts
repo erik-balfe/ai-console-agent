@@ -20,7 +20,7 @@ export const AI_CONSOLE_AGENT_DIR = "/tmp/ai-console-agent";
 export const CURRENT_RUN_FILE_NAME = "current_run_id.txt";
 
 export const MAX_INPUT_LENGTH = 10000;
-export const AGENT_CONTEXT_ALLOCATION = "60000"; // New constant for agent context allocation
+export const AGENT_CONTEXT_ALLOCATION = "60000";
 
 export const CONFIG_DIR_PATH = path.join(
   process.env.HOME || process.env.USERPROFILE || "",
@@ -83,7 +83,7 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
     supportsVision: true,
     functionCalling: true,
     knowledgeCutoff: "08.08.2024",
-    default: false, // added field
+    default: false,
   },
   "gpt-4o": {
     id: "gpt-4o",
@@ -97,7 +97,7 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
     supportsVision: true,
     functionCalling: true,
     knowledgeCutoff: "8.08.2024",
-    default: false, // added field
+    default: false,
   },
   "claude-3-5-sonnet-latest": {
     id: "claude-3-5-sonnet-latest",
@@ -111,7 +111,7 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
     supportsVision: true,
     functionCalling: true,
     knowledgeCutoff: "April 2024",
-    default: false, // added field
+    default: false,
   },
   "claude-3-5-haiku-latest": {
     id: "claude-3-5-haiku-latest",
@@ -139,6 +139,36 @@ export const MODEL_PRICES: Record<string, AIModelConfig> = {
     supportsVision: false,
     functionCalling: true,
     knowledgeCutoff: "Unknown",
-    default: false, // added field
+    default: false,
+  },
+};
+
+export interface ContextAllocationItem {
+  maxTokens: number;
+  assumedTokenSize: number;
+  maxChars: number;
+}
+
+export interface ContextAllocation {
+  memories: ContextAllocationItem;
+  chatHistory: ContextAllocationItem;
+  toolOutput: ContextAllocationItem;
+}
+
+export const CONTEXT_ALLOCATION = {
+  memories: {
+    maxTokens: 10000,
+    assumedTokenSize: 4,
+    maxChars: 40000,
+  },
+  chatHistory: {
+    maxTokens: 15000,
+    assumedTokenSize: 4,
+    maxChars: 60000,
+  },
+  toolOutput: {
+    maxTokens: 5000,
+    assumedTokenSize: 4,
+    maxChars: 20000,
   },
 };

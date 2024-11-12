@@ -198,7 +198,7 @@ async function executeTask(
       if (parsedResponse.usage) {
         const costInfo = countUsageCost(parsedResponse.usage, model);
         totalCost += costInfo.costUSD;
-        logger.debug(
+        logger.info(
           `Step cost: $${costInfo.costUSD.toFixed(6)}, Total cost so far: $${totalCost.toFixed(6)}`,
         );
       }
