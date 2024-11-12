@@ -45,7 +45,7 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
           continue;
         }
 
-        storeAPIKey(apiKey, provider);
+        await storeAPIKey(apiKey, provider);
         logger.debug(`New ${provider} API key stored successfully`);
         console.log(chalk.green(`${provider} API key has been securely stored.`));
       }
