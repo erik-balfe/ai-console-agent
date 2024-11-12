@@ -1,4 +1,4 @@
-import { Entry, keyring } from "@napi-rs/keyring";
+import { Entry } from "@napi-rs/keyring";
 import { APIProvider } from "../constants";
 import { getProviderFromModel } from "./getOrPromptForAPIKey";
 import { logger } from "./logger";
@@ -8,9 +8,9 @@ const SERVICE_NAME = "AIConsoleAgent";
 export function checkKeyringAvailability(): boolean {
   try {
     logger.debug("Checking keyring service availability...");
-    logger.debug(`Keyring platform: ${keyring.platform()}`);
     logger.debug(`Process UID: ${process.getuid?.()}`);
     logger.debug(`Process GID: ${process.getgid?.()}`);
+    logger.debug(`Operating System: ${process.platform}`);
 
     // Test keyring with a simple operation
     const testEntry = new Entry("ai-console-agent-test", "service-test");
@@ -66,14 +66,12 @@ export function getAPIKey(provider: APIProvider): string | null {
     logger.debug(`Attempting to retrieve ${provider} API key`);
     const entry = getEntryForProvider(provider);
     const apiKey = entry.getPassword();
-    logger.debug(`${provider} API key retrieved successfully (first 4 chars: ${apiKey?.slice(0, 4)}...)`);
+    if (apiKey) {
+      logger.debug(`${provider} API key retrieved successfully (first 4 chars: ${apiKey.slice(0, 4)}...)`);
+    }
     return apiKey;
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message.includes("No password found")) {
-        logger.debug(`No ${provider} API key found in keyring`);
-        return null;
-      }
       logger.error(`Failed to retrieve ${provider} API key:`, {
         name: error.name,
         message: error.message,
@@ -91,9 +89,9 @@ export function deleteAPIKey(modelId: string): boolean {
     const provider = getProviderFromModel(modelId);
     logger.debug(`Attempting to delete ${provider} API key`);
     const entry = getEntryForProvider(provider);
-    entry.deletePassword();
-    logger.debug(`${provider} API key deleted successfully`);
-    return true;
+    const result = entry.deletePassword();
+    logger.debug(`${provider} API key deletion ${result ? "successful" : "failed"}`);
+    return result;
   } catch (error) {
     logger.error(`Failed to delete ${modelId} API key:`, error);
     if (error instanceof Error) {
@@ -107,33 +105,25 @@ export function deleteAPIKey(modelId: string): boolean {
   }
 }
 
-// Add this function to check system keyring status
+// Simplified diagnostics function
 export function getKeyringDiagnostics(): string {
   try {
     const diagnostics = [
-      `Platform: ${keyring.platform()}`,
+      `Operating System: ${process.platform}`,
       `Process UID: ${process.getuid?.()}`,
       `Process GID: ${process.getgid?.()}`,
       `Service Name: ${SERVICE_NAME}`,
       `Node Version: ${process.version}`,
-      `Operating System: ${process.platform}`,
     ];
 
-    // Try to list available keyring services if possible
-    if (process.platform === "linux") {
-      // On Linux, we might want to check for common keyring services
-      const services = ["gnome-keyring", "kwallet", "pass", "secret-service"];
-      diagnostics.push("Available keyring services:");
-      for (const service of services) {
-        try {
-          const testEntry = new Entry(service + "-test", "test");
-          testEntry.setPassword("test");
-          testEntry.deletePassword();
-          diagnostics.push(`  ✓ ${service}`);
-        } catch {
-          diagnostics.push(`  ✗ ${service}`);
-        }
-      }
+    // Try to test keyring access
+    const testEntry = new Entry("test-service", "test-user");
+    try {
+      testEntry.setPassword("test");
+      testEntry.deletePassword();
+      diagnostics.push("✓ Keyring access test passed");
+    } catch (error) {
+      diagnostics.push(`✗ Keyring access test failed: ${error}`);
     }
 
     return diagnostics.join("\n");
