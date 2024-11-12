@@ -1,12 +1,12 @@
 import { execSync } from "child_process";
 import fs from "fs";
-import { APP_CONFIG_FILE_PATH, AVAILABLE_MODELS, CONFIG_DIR_PATH, USER_PREFS_FILE_PATH } from "../constants";
+import { APP_CONFIG_FILE_PATH, CONFIG_DIR_PATH, MODEL_PRICES, USER_PREFS_FILE_PATH } from "../constants";
 import { LogLevel, LogLevelType } from "./logger";
 
 export interface AppConfig {
   logLevel: LogLevelType;
   model: string;
-  // ... other app settings
+  // ... other app settings,
 }
 
 export interface UserPreferences {
@@ -17,7 +17,7 @@ export interface UserPreferences {
 
 const DEFAULT_APP_CONFIG: AppConfig = {
   logLevel: LogLevel.WARN,
-  model: AVAILABLE_MODELS.gpt4oMini,
+  model: Object.values(MODEL_PRICES).find((model) => model.default)?.id || "",
 };
 
 const DEFAULT_USER_PREFS: UserPreferences = {
