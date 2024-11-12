@@ -192,7 +192,8 @@ export async function getFreeformInput(prompt: string, isPassword: boolean = fal
   try {
     // Try inquirer first
     if (isPassword) {
-      return await password({ message: prompt, mask: "*" });
+      const result = await password({ message: prompt, mask: "*" });
+      return result;
     }
     return await input({ message: prompt });
   } catch (error) {
