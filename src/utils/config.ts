@@ -1,6 +1,5 @@
 import { execSync } from "child_process";
 import fs from "fs";
-import path from "path";
 import { APP_CONFIG_FILE_PATH, AVAILABLE_MODELS, CONFIG_DIR_PATH, USER_PREFS_FILE_PATH } from "../constants";
 import { LogLevel, LogLevelType } from "./logger";
 
@@ -60,43 +59,43 @@ function execCommand(command: string, cwd: string): string {
   }
 }
 
-function initGitRepo() {
-  if (!fs.existsSync(path.join(CONFIG_DIR_PATH, ".git"))) {
-    execCommand("git init", CONFIG_DIR_PATH);
-    execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
-    execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
-    execCommand('git commit -m "Initial commit"', CONFIG_DIR_PATH);
-  }
-}
+// function initGitRepo() {
+//   if (!fs.existsSync(path.join(CONFIG_DIR_PATH, ".git"))) {
+//     execCommand("git init", CONFIG_DIR_PATH);
+//     execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
+//     execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
+//     execCommand('git commit -m "Initial commit"', CONFIG_DIR_PATH);
+//   }
+// }
 
-function commitChanges(message: string): boolean {
-  try {
-    execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
-    execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
-    execCommand(`git commit -m "${message}"`, CONFIG_DIR_PATH);
-    return true;
-  } catch (error) {
-    console.error("Failed to commit changes:", error);
-    return false;
-  }
-}
+// function commitChanges(message: string): boolean {
+//   try {
+//     execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
+//     execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
+//     execCommand(`git commit -m "${message}"`, CONFIG_DIR_PATH);
+//     return true;
+//   } catch (error) {
+//     console.error("Failed to commit changes:", error);
+//     return false;
+//   }
+// }
 
-function getLastCommitHash(): string {
-  return execCommand("git rev-parse HEAD", CONFIG_DIR_PATH).trim();
-}
+// function getLastCommitHash(): string {
+//   return execCommand("git rev-parse HEAD", CONFIG_DIR_PATH).trim();
+// }
 
-export function revertLastChange(): boolean {
-  try {
-    const lastCommitHash = getLastCommitHash();
-    execCommand(`git revert --no-commit ${lastCommitHash}`, CONFIG_DIR_PATH);
-    execCommand('git commit -m "Revert last change due to config issue"', CONFIG_DIR_PATH);
-    return true;
-  } catch (error) {
-    console.error("Failed to revert last change:", error);
-    return false;
-  }
-}
-loadConfig
+// export function revertLastChange(): boolean {
+//   try {
+//     const lastCommitHash = getLastCommitHash();
+//     execCommand(`git revert --no-commit ${lastCommitHash}`, CONFIG_DIR_PATH);
+//     execCommand('git commit -m "Revert last change due to config issue"', CONFIG_DIR_PATH);
+//     return true;
+//   } catch (error) {
+//     console.error("Failed to revert last change:", error);
+//     return false;
+//   }
+// }
+
 export function loadConfig(): { appConfig: AppConfig; userPrefs: UserPreferences } {
   if (!fs.existsSync(CONFIG_DIR_PATH)) {
     fs.mkdirSync(CONFIG_DIR_PATH, { recursive: true });
@@ -128,7 +127,7 @@ export function loadConfig(): { appConfig: AppConfig; userPrefs: UserPreferences
       writeConfigFile(USER_PREFS_FILE_PATH, DEFAULT_USER_PREFS);
     }
 
-    initGitRepo();
+    // initGitRepo();
   } catch (error) {
     console.error("Error loading config:", error);
     // If there's an error, use default configs
@@ -146,13 +145,13 @@ export function saveConfig(appConfig: Partial<AppConfig>, userPrefs: Partial<Use
     writeConfigFile(APP_CONFIG_FILE_PATH, newAppConfig);
     writeConfigFile(USER_PREFS_FILE_PATH, newUserPrefs);
 
-    if (commitChanges("Update config and preferences")) {
-      return true;
-    } else {
-      console.warn("Failed to commit changes. Rolling back...");
-      revertLastChange();
-      return false;
-    }
+    // if (commitChanges("Update config and preferences")) {
+    return true;
+    // } else {
+    //   console.warn("Failed to commit changes. Rolling back...");
+    //   revertLastChange();
+    //   return false;
+    // }
   } catch (error) {
     console.error("Error saving config:", error);
     return false;

@@ -1,4 +1,6 @@
 import { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import path from "path";
 import { MessageRole } from "../constants";
 import { AgentMessage, ToolCall } from "./interface";
@@ -23,9 +25,20 @@ export interface AgentStep {
 const LATEST_DB_VERSION = 6;
 
 export async function initializeDatabase(): Promise<Database> {
-  const db = new Database(DB_PATH, { create: true });
+  const dbDir = path.dirname(DB_PATH);
+  if (!existsSync(dbDir)) {
+    try {
+      await mkdir(dbDir, { recursive: true });
+    } catch (error) {
+      logger.error(`Failed to create database directory: ${error}`);
+      throw error;
+    }
+  }
 
-  db.exec(`
+  try {
+    const db = new Database(DB_PATH, { create: true });
+
+    db.exec(`
     CREATE TABLE IF NOT EXISTS db_version (
       version INTEGER DEFAULT ${LATEST_DB_VERSION} PRIMARY KEY
     );
@@ -70,18 +83,24 @@ export async function initializeDatabase(): Promise<Database> {
     );
   `);
 
-  const currentVersion = db.query("SELECT version FROM db_version").get() as { version: number } | undefined;
+    const currentVersion = db.query("SELECT version FROM db_version").get() as
+      | { version: number }
+      | undefined;
 
-  if (currentVersion) {
-    logger.debug(`Current database version: ${currentVersion.version}`);
-  } else {
-    logger.debug("No database version found");
+    if (currentVersion) {
+      logger.debug(`Current database version: ${currentVersion.version}`);
+    } else {
+      logger.debug("No database version found");
+    }
+
+    // await migrateDatabase(db);
+
+    logger.debug(`Database initialized successfully at ${DB_PATH}`);
+    return db;
+  } catch (error) {
+    logger.error(`Failed to initialize database: ${error}`);
+    throw error;
   }
-
-  // await migrateDatabase(db);
-
-  logger.debug(`Database initialized successfully at ${DB_PATH}`);
-  return db;
 }
 
 export interface Conversation extends ConversationMetadata {
