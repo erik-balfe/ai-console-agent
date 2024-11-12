@@ -2,132 +2,139 @@ import { Entry } from "@napi-rs/keyring";
 import { APIProvider } from "../constants";
 import { getProviderFromModel } from "./getOrPromptForAPIKey";
 import { logger } from "./logger";
+import { SecureFileStorage } from "./secureStorage/fileStorage";
 
 const SERVICE_NAME = "AIConsoleAgent";
 
-export function checkKeyringAvailability(): boolean {
+// Storage interface to handle both types
+interface Storage {
+  get(key: string): string | null | Promise<string | null>;
+  set(key: string, value: string): void | Promise<void>;
+  delete(key: string): boolean | Promise<boolean>;
+}
+
+class KeyringStorage implements Storage {
+  private entry: Entry;
+
+  constructor(service: string, key: string) {
+    this.entry = new Entry(service, key);
+  }
+
+  get(key: string): string | null {
+    try {
+      return this.entry.getPassword();
+    } catch (error) {
+      logger.error("Keyring get error:", error);
+      return null;
+    }
+  }
+
+  set(key: string, value: string): void {
+    this.entry.setPassword(value);
+  }
+
+  delete(key: string): boolean {
+    return this.entry.deletePassword();
+  }
+}
+
+// Initialize storage
+let storage: Storage;
+
+async function initializeStorage(): Promise<Storage> {
   try {
-    logger.debug("Checking keyring service availability...");
-    logger.debug(`Process UID: ${process.getuid?.()}`);
-    logger.debug(`Process GID: ${process.getgid?.()}`);
-    logger.debug(`Operating System: ${process.platform}`);
-
-    // Test keyring with a simple operation
-    const testEntry = new Entry("ai-console-agent-test", "service-test");
-    logger.debug("Created test keyring entry");
-
-    testEntry.setPassword("test-value");
-    logger.debug("Successfully set test password");
-
-    const retrievedValue = testEntry.getPassword();
-    logger.debug(`Successfully retrieved test password: ${retrievedValue === "test-value"}`);
-
+    logger.debug("Trying to initialize keyring storage...");
+    // Test keyring availability
+    const testEntry = new Entry("test-service", "test-user");
+    testEntry.setPassword("test");
     testEntry.deletePassword();
-    logger.debug("Successfully deleted test password");
 
-    return true;
+    logger.debug("Keyring storage is available");
+    return new KeyringStorage(SERVICE_NAME, "APIKeys");
   } catch (error) {
-    logger.error("Keyring service error:", error);
-    if (error instanceof Error) {
-      logger.error("Error name:", error.name);
-      logger.error("Error message:", error.message);
-      logger.error("Error stack:", error.stack);
-    }
-    return false;
+    logger.debug("Keyring storage not available, falling back to file storage:", error);
+    return new SecureFileStorage();
   }
 }
 
-const getEntryForProvider = (provider: APIProvider): Entry => {
-  logger.debug(`Creating keyring entry for provider: ${provider}`);
-  return new Entry(SERVICE_NAME, `${provider}APIKey`);
-};
+// Initialize storage when module is loaded
+(async () => {
+  storage = await initializeStorage();
+})();
 
-export function storeAPIKey(apiKey: string, provider: APIProvider): void {
-  try {
-    logger.debug(`Attempting to store ${provider} API key`);
-    const entry = getEntryForProvider(provider);
-    entry.setPassword(apiKey);
-    logger.debug(`${provider} API key stored successfully`);
-  } catch (error) {
-    logger.error(`Failed to store ${provider} API key:`, error);
-    if (error instanceof Error) {
-      logger.error("Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      });
-    }
-    throw new Error(`Failed to securely store the ${provider} API key`);
-  }
-}
-
-export function getAPIKey(provider: APIProvider): string | null {
+export async function getAPIKey(provider: APIProvider): Promise<string | null> {
   try {
     logger.debug(`Attempting to retrieve ${provider} API key`);
-    const entry = getEntryForProvider(provider);
-    const apiKey = entry.getPassword();
-    if (apiKey) {
-      logger.debug(`${provider} API key retrieved successfully (first 4 chars: ${apiKey.slice(0, 4)}...)`);
-    }
-    return apiKey;
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error(`Failed to retrieve ${provider} API key:`, {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      });
+    const key = await storage.get(`${provider}APIKey`);
+
+    if (key) {
+      logger.debug(`${provider} API key retrieved successfully (first 4 chars: ${key.slice(0, 4)}...)`);
     } else {
-      logger.error(`Unknown error while retrieving ${provider} API key:`, error);
+      logger.debug(`No ${provider} API key found`);
     }
+
+    return key;
+  } catch (error) {
+    logger.error(`Failed to retrieve ${provider} API key:`, error);
     return null;
   }
 }
 
-export function deleteAPIKey(modelId: string): boolean {
+export async function storeAPIKey(apiKey: string, provider: APIProvider): Promise<void> {
+  try {
+    logger.debug(`Attempting to store ${provider} API key`);
+    await storage.set(`${provider}APIKey`, apiKey);
+    logger.debug(`${provider} API key stored successfully`);
+  } catch (error) {
+    logger.error(`Failed to store ${provider} API key:`, error);
+    throw new Error(`Failed to securely store the ${provider} API key`);
+  }
+}
+
+export async function deleteAPIKey(modelId: string): Promise<boolean> {
   try {
     const provider = getProviderFromModel(modelId);
     logger.debug(`Attempting to delete ${provider} API key`);
-    const entry = getEntryForProvider(provider);
-    const result = entry.deletePassword();
+    const result = await storage.delete(`${provider}APIKey`);
     logger.debug(`${provider} API key deletion ${result ? "successful" : "failed"}`);
     return result;
   } catch (error) {
     logger.error(`Failed to delete ${modelId} API key:`, error);
-    if (error instanceof Error) {
-      logger.error("Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      });
-    }
     return false;
   }
 }
 
-// Simplified diagnostics function
-export function getKeyringDiagnostics(): string {
+export async function checkStorageAvailability(): Promise<string> {
   try {
-    const diagnostics = [
-      `Operating System: ${process.platform}`,
-      `Process UID: ${process.getuid?.()}`,
-      `Process GID: ${process.getgid?.()}`,
-      `Service Name: ${SERVICE_NAME}`,
-      `Node Version: ${process.version}`,
-    ];
+    const testKey = "test-key";
+    const testValue = "test-value";
 
-    // Try to test keyring access
-    const testEntry = new Entry("test-service", "test-user");
-    try {
-      testEntry.setPassword("test");
-      testEntry.deletePassword();
-      diagnostics.push("✓ Keyring access test passed");
-    } catch (error) {
-      diagnostics.push(`✗ Keyring access test failed: ${error}`);
+    // Test storage operations
+    await storage.set(testKey, testValue);
+    const retrieved = await storage.get(testKey);
+    await storage.delete(testKey);
+
+    const storageType = storage instanceof SecureFileStorage ? "File Storage" : "Keyring Storage";
+
+    if (retrieved === testValue) {
+      return `Storage system (${storageType}) is working correctly`;
+    } else {
+      return `Storage system (${storageType}) failed verification`;
     }
-
-    return diagnostics.join("\n");
   } catch (error) {
-    return `Failed to get keyring diagnostics: ${error}`;
+    return `Storage system error: ${error}`;
   }
+}
+
+// Add this if you still want to get diagnostics about the system
+export function getStorageDiagnostics(): string {
+  const diagnostics = [
+    `Operating System: ${process.platform}`,
+    `Process UID: ${process.getuid?.()}`,
+    `Process GID: ${process.getgid?.()}`,
+    `Storage Type: ${storage instanceof SecureFileStorage ? "File Storage" : "Keyring Storage"}`,
+    `Node Version: ${process.version}`,
+  ];
+
+  return diagnostics.join("\n");
 }

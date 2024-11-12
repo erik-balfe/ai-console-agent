@@ -12,7 +12,7 @@ export async function getOrPromptForAPIKey(modelId: string, forceNew: boolean = 
 
   while (retries < MAX_RETRIES) {
     try {
-      let apiKey = forceNew ? null : getAPIKey(provider);
+      let apiKey = forceNew ? null : await getAPIKey(provider);
 
       if (apiKey) {
         logger.debug(`${provider} API key found in keyring`);
