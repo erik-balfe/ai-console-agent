@@ -1,4 +1,4 @@
-import { input, password, select, Separator } from "@inquirer/prompts";
+import { input, select, Separator } from "@inquirer/prompts";
 import chalk from "chalk";
 import { stdin, stdout } from "node:process";
 import readline from "node:readline/promises";
@@ -173,43 +173,43 @@ export async function displayOptionsAndGetInput(
 export async function getFreeformInput(prompt: string, isPassword: boolean = false): Promise<string> {
   // First check if we're in a non-interactive environment
   const isNonInteractive = !process.stdin.isTTY || process.env.NON_INTERACTIVE;
+  logger.debug(`isNonInteractive: ${isNonInteractive}`);
+  // if (isNonInteractive) {
+  //   // Check for environment variable
+  //   const envVar = `AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`;
+  //   const envValue = process.env[envVar];
+  //   if (envValue) {
+  //     logger.debug(`Using value from environment variable ${envVar}`);
+  //     return envValue;
+  //   }
 
-  if (isNonInteractive) {
-    // Check for environment variable
-    const envVar = `AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`;
-    const envValue = process.env[envVar];
-    if (envValue) {
-      logger.debug(`Using value from environment variable ${envVar}`);
-      return envValue;
-    }
+  //   throw new Error(
+  //     `Running in non-interactive mode. Please set ${envVar} environment variable.\n` +
+  //       `Example: export ${envVar}=your-api-key`,
+  //   );
+  // }
 
+  // try {
+  //   // Try inquirer first
+  //   if (isPassword) {
+  //     const result = await password({ message: prompt, mask: "*" });
+  //     return result;
+  //   }
+  //   return await input({ message: prompt });
+  // } catch (error) {
+  // logger.debug("Interactive prompt failed, falling back to basic readline:", error);
+
+  // Fallback to basic readline
+  const rl = readline.createInterface({ input: stdin, output: stdout });
+  try {
+    const answer = await rl.question(`${prompt}: `);
+    rl.close();
+    return answer;
+  } catch (readlineError) {
+    logger.error("Basic readline also failed:", readlineError);
     throw new Error(
-      `Running in non-interactive mode. Please set ${envVar} environment variable.\n` +
-        `Example: export ${envVar}=your-api-key`,
+      `Cannot read input interactively. Please set ${`AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`} environment variable`,
     );
   }
-
-  try {
-    // Try inquirer first
-    if (isPassword) {
-      const result = await password({ message: prompt, mask: "*" });
-      return result;
-    }
-    return await input({ message: prompt });
-  } catch (error) {
-    logger.debug("Interactive prompt failed, falling back to basic readline:", error);
-
-    // Fallback to basic readline
-    const rl = readline.createInterface({ input: stdin, output: stdout });
-    try {
-      const answer = await rl.question(`${prompt}: `);
-      rl.close();
-      return answer;
-    } catch (readlineError) {
-      logger.error("Basic readline also failed:", readlineError);
-      throw new Error(
-        `Cannot read input interactively. Please set ${`AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`} environment variable`,
-      );
-    }
-  }
+  // }
 }
