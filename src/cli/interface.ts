@@ -1,7 +1,9 @@
 import { input, password, select, Separator } from "@inquirer/prompts";
 import chalk from "chalk";
+import { stdin, stdout } from "node:process";
+import readline from "node:readline/promises";
 import { AVAILABLE_MODELS } from "../constants";
-import { LogLevel, LogLevelType } from "../utils/logger";
+import { logger, LogLevel, LogLevelType } from "../utils/logger";
 import { resolveModelId } from "../utils/modelUtils";
 
 export interface ParsedArguments {
@@ -169,8 +171,44 @@ export async function displayOptionsAndGetInput(
 }
 
 export async function getFreeformInput(prompt: string, isPassword: boolean = false): Promise<string> {
-  if (isPassword) {
-    return password({ message: prompt, mask: "*" });
+  // First check if we're in a non-interactive environment
+  const isNonInteractive = !process.stdin.isTTY || process.env.NON_INTERACTIVE;
+
+  if (isNonInteractive) {
+    // Check for environment variable
+    const envVar = `AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`;
+    const envValue = process.env[envVar];
+    if (envValue) {
+      logger.debug(`Using value from environment variable ${envVar}`);
+      return envValue;
+    }
+
+    throw new Error(
+      `Running in non-interactive mode. Please set ${envVar} environment variable.\n` +
+        `Example: export ${envVar}=your-api-key`,
+    );
   }
-  return input({ message: prompt });
+
+  try {
+    // Try inquirer first
+    if (isPassword) {
+      return await password({ message: prompt, mask: "*" });
+    }
+    return await input({ message: prompt });
+  } catch (error) {
+    logger.debug("Interactive prompt failed, falling back to basic readline:", error);
+
+    // Fallback to basic readline
+    const rl = readline.createInterface({ input: stdin, output: stdout });
+    try {
+      const answer = await rl.question(`${prompt}: `);
+      rl.close();
+      return answer;
+    } catch (readlineError) {
+      logger.error("Basic readline also failed:", readlineError);
+      throw new Error(
+        `Cannot read input interactively. Please set ${`AI_CONSOLE_${prompt.replace(/[^A-Z0-9]/gi, "_").toUpperCase()}`} environment variable`,
+      );
+    }
+  }
 }
