@@ -18,23 +18,18 @@ AI Console Agent is an advanced command-line tool that uses artificial intellige
 
 ## Features
 
-- Natural language processing for command interpretation
-- Execution of system commands based on user input
+- Proactive working on user task
 - Intelligent careful file handling with automatic backups
-- Ask user for clarifications and confirmations
-- Cautious command execution with step-by-step verification
+- Cautious command execution with user confirmation for important and possibly irreversible commands
 - Use of a dedicated scratch space for storing intermediate results and working on files not affecting user files
-- Proactive information gathering about the system configuration and user preferences
-- Colorized console output for better readability
-- Secure storage of OpenAI API key using system keychain
-- Putting down user preferences for further more personalized interactions
+- Various LLM models support (Claude, GPT, Llama)
+- Secure storage of API keys
+- Memory allowing to recall anything from previous dialogues
 
 ### Planned features
 
-- Storing all history of user queries and log of working on the tasks
-- Considering all prev history when dealing with new tasks
-- Support for viewing image files
-- Support for web search for getting actual information
+- Support for image interpreting (files and provided in chat)
+- Support for web search.
 - More interactive mode. When agent can inform the user about current state of working on the task and understand time consumptions of different commands and warn about them and consider time of different approachen when planning tasks
 
 ## Installation
