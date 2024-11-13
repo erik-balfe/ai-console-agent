@@ -9,16 +9,24 @@ import { createToolMiddleware } from "./toolMiddleware";
 
 interface ExecuteCommandParams {
   command: string;
-  requireConfirmation: boolean;
-  explanation: string;
+  requireConfirmation?: {
+    enabled?: boolean;
+    description?: string;
+  };
 }
 
 const executeCommandCallback = async (params: ExecuteCommandParams): Promise<string> => {
-  const { command, requireConfirmation = false, explanation = "No explanation provided" } = params;
+  const {
+    command,
+    requireConfirmation: { enabled, description: explanation } = { enabled: false, description: "" },
+  } = params;
 
-  if (requireConfirmation) {
+  if (enabled) {
+    if (!explanation) {
+      throw new Error("requireConfirmation.description is required when requireConfirmation.enabled is true");
+    }
     const confirmationQuestion = chalk.blue(
-      `\n\nDo you want to execute this command:\n\n>${command}\n\n${explanation}\n\n`,
+      `\n\n${explanation}.\\nDo you want to execute this command:\n\n>${command}\n`,
     );
     const userChoice = await displayOptionsAndGetInput(confirmationQuestion, ["Yes", "No"]);
     if (userChoice === "No") {
@@ -58,27 +66,36 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
   const wrappedCallback = createToolMiddleware(db, conversationId)("executeCommand", executeCommandCallback);
 
   return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
-    name: "executeCommand",
-    description: `Execute a shell command on the user's host system. Commands that suppose to be interactive (like usual 'git commit') are not supported and must be strongly avoided.
-       Note: Command output is limited to ${CONTEXT_ALLOCATION.toolOutput.maxTokens} tokens (approximately ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters).
-       For commands that might produce large output, consider using more specific commands or adding filters (grep, head, tail, etc.).`,
+    name: "bash",
+    description: `Execute a shell command on the user's host system.
+- Commands that suppose to be interactive (like usual 'git commit' - requires editor to be open and save commit message) are not supported and must be strongly avoided.
+- Command output is limited to ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters).
+- Please avoid commands that may produce a very large amount of output.
+- For commands that might produce large output, consider using more targeted commands with filters like grep, head, tail, awk, or sed to reduce output size. You can also pipe commands together to filter and format the output before it reaches the limit.
+- Use Scratch Space to store intermediate results when processing large amounts of data. Instead of constructing complex command pipelines, break down operations into steps and save intermediate results to files in Scratch Space. This makes the process more manageable and allows examining intermediate data if needed.
+- When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+It always returns a json object with stdout and stderr strings.
+`,
     parameters: {
       type: "object",
       properties: {
-        explanation: {
-          type: "string",
-          description:
-            "Command name and args in free form with explanation of what the command does, shown to the user before confirmation, intention of the commoand and expected output (at least type or shape of output expected)",
-          default: "No explanation provided",
-        },
         command: {
           type: "string",
           description: "The command to execute",
         },
         requireConfirmation: {
-          type: "boolean",
-          description: "If true, requires explicit user confirmation before executing the command.",
-          default: false,
+          type: "object",
+          properties: {
+            enabled: {
+              type: "boolean",
+              description: "If true, requires explicit user confirmation before executing the command.",
+            },
+            description: {
+              type: "string",
+              description:
+                "Description of the comamand, that will be shown to the user before confirmation. Required if requireConfirmation is true.",
+            },
+          },
         },
       },
       required: ["command"],
