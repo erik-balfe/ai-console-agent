@@ -14,7 +14,9 @@ export function createToolMiddleware(db: Database, conversationId: number) {
       let executionTime = 0;
 
       try {
-        logger.debug(`Starting tool: ${toolName} [${toolCallId}] with arguments: ${JSON.stringify(params)}`);
+        logger.debug(
+          `Starting tool: "${toolName}", ID: "${toolCallId}" with arguments: "${JSON.stringify(params)}"`,
+        );
         result = await toolFunction(params);
         executionTime = Date.now() - startTime;
         logger.debug(`Tool output: ${JSON.stringify(result)}`);
@@ -23,16 +25,16 @@ export function createToolMiddleware(db: Database, conversationId: number) {
         logger.error(`Error executing tool: ${toolName} [${toolCallId}]`, error);
         throw error;
       } finally {
-        await insertToolUse(
+        await insertToolUse({
           db,
           conversationId,
           toolCallId,
           toolName,
-          JSON.stringify(params),
-          JSON.stringify(result || "undefined"),
-          executionTime,
-          Date.now(),
-        );
+          inputParams: JSON.stringify(params),
+          output: JSON.stringify(result) || "undefined",
+          duration: executionTime,
+          timestamp: Date.now(),
+        });
       }
 
       return result;

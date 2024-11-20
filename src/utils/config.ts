@@ -109,7 +109,8 @@ export function loadConfig(): { appConfig: AppConfig; userPrefs: UserPreferences
       const parsedConfig = parseConfigFile(APP_CONFIG_FILE_PATH);
       appConfig = {
         ...DEFAULT_APP_CONFIG,
-        logLevel: (parsedConfig.logLevel as LogLevelType) || DEFAULT_APP_CONFIG.logLevel,
+        logLevel:
+          (parsedConfig.logLevel.toUpperCase() as LogLevelType) || DEFAULT_APP_CONFIG.logLevel.toUpperCase(),
         model: parsedConfig.model || DEFAULT_APP_CONFIG.model,
       };
     } else {

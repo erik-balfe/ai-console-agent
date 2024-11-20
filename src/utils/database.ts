@@ -19,7 +19,7 @@ export interface AgentStep {
   role: string;
 }
 
-const LATEST_DB_VERSION = 6;
+const LATEST_DB_VERSION = 8;
 
 export async function initializeDatabase(): Promise<Database> {
   const dbDir = path.dirname(DB_PATH);
@@ -36,11 +36,14 @@ export async function initializeDatabase(): Promise<Database> {
   try {
     const db = new Database(DB_PATH, { create: true });
 
-    db.exec(`
-    CREATE TABLE IF NOT EXISTS db_version (
-      version INTEGER DEFAULT ${LATEST_DB_VERSION} PRIMARY KEY
-    );
+    const currentVersion = db.query("SELECT version FROM db_version").get();
+    if (currentVersion) {
+      logger.debug(`Database version found: ${currentVersion.version}`);
+    } else {
+      logger.debug("No database version found");
+    }
 
+    db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userQuery TEXT NOT NULL,
@@ -70,28 +73,31 @@ export async function initializeDatabase(): Promise<Database> {
     CREATE TABLE IF NOT EXISTS tool_uses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversationId INTEGER NOT NULL,
-      stepId INTEGER NOT NULL,
+      toolCallId TEXT NOT NULL,
       toolName TEXT NOT NULL,
       inputParams TEXT NOT NULL,
       output TEXT NOT NULL,
       timestamp BIGINT NOT NULL,
       duration INTEGER NOT NULL,
-      FOREIGN KEY (stepId) REFERENCES messages (id),
       FOREIGN KEY (conversationId) REFERENCES conversations (id)
     );
-  `);
+    `);
 
-    const currentVersion = db.query("SELECT version FROM db_version").get() as
-      | { version: number }
-      | undefined;
+    const versionTableExists = db
+      .query("SELECT name FROM sqlite_master WHERE type='table' AND name='db_version';")
+      .get();
 
-    if (currentVersion) {
-      logger.debug(`Current database version: ${currentVersion.version}`);
-    } else {
-      logger.debug("No database version found");
+    if (!versionTableExists) {
+      db.exec(`
+        CREATE TABLE db_version (
+          version INTEGER PRIMARY KEY
+        );
+      `);
+      db.run("INSERT INTO db_version (version) VALUES (?);", [LATEST_DB_VERSION]);
+      logger.debug(`Database version set to ${LATEST_DB_VERSION}`);
     }
 
-    // await migrateDatabase(db);
+    await migrateDatabase(db); // Automatically run migration if needed
 
     logger.debug(`Database initialized successfully at ${DB_PATH}`);
     return db;
@@ -123,7 +129,7 @@ export interface ConversationMetadata extends ConversationScores {
 
 export interface ToolCallRecord {
   id: number;
-  stepId: number;
+  toolCallId: string;
   toolName: string;
   inputParams: string;
   output: string;
@@ -165,24 +171,40 @@ export async function insertMessage(
   return Number(result.lastInsertRowid);
 }
 
-export interface ToolCallRecord extends ToolCall {
-  conversationId: number;
-  stepId: number;
+export interface ToolCallRecord {
+  id: number;
+  toolCallId: string;
+  toolName: string;
+  inputParams: string;
+  output: string;
+  timestamp: number;
+  duration: number;
 }
 
-export async function insertToolUse(
-  db: Database,
-  conversationId: number,
-  stepId: number,
-  toolName: string,
-  inputParams: string,
-  output: string,
-  duration: number,
-  timestamp: number,
-): Promise<number> {
+export interface InsertToolUseParams {
+  db: Database;
+  conversationId: number;
+  toolCallId: string;
+  toolName: string;
+  inputParams: string;
+  output: string;
+  duration: number;
+  timestamp: number;
+}
+
+export async function insertToolUse({
+  db,
+  conversationId,
+  toolCallId,
+  toolName,
+  inputParams,
+  output,
+  duration,
+  timestamp,
+}: InsertToolUseParams): Promise<number> {
   const result = db.run(
-    "INSERT INTO tool_uses (conversationId, stepId, toolName, inputParams, output, timestamp, duration) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [conversationId, stepId, toolName, inputParams, output, timestamp, duration],
+    "INSERT INTO tool_uses (conversationId, toolCallId, toolName, inputParams, output, timestamp, duration) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [conversationId, toolCallId, toolName, inputParams, output, timestamp, duration],
   );
   return Number(result.lastInsertRowid);
 }
@@ -236,7 +258,7 @@ export async function updateConversationFields(
       conversationId,
     ],
   );
-  logger.info(`Conversation ID: ${conversationId} updated successfully with new fields.`);
+  logger.debug(`Conversation ID: ${conversationId} updated successfully with new fields.`);
 }
 
 export function printDatabaseContents(db: Database) {
@@ -280,7 +302,7 @@ export function getAllConversationData(
 
   const toolCalls = db
     .query(
-      "SELECT toolName, inputParams, output, timestamp, duration FROM tool_uses WHERE conversationId = ? ORDER BY timestamp ASC",
+      "SELECT toolName, toolCallId, inputParams, output, timestamp, duration FROM tool_uses WHERE conversationId = ? ORDER BY timestamp ASC",
     )
     .all(conversationId) as Array<ToolCall>;
 
@@ -297,6 +319,79 @@ export function getAllConversationData(
   return { messages, toolCalls, conversationData };
 }
 
-export { Database };
+async function migrateDatabase(db: Database): Promise<void> {
+  const currentVersionRow = db.query("SELECT version FROM db_version").get();
+  const currentVersion = currentVersionRow ? currentVersionRow.version : 0;
 
-export async function migrateDatabase(db: Database): Promise<void> {}
+  if (currentVersion < LATEST_DB_VERSION) {
+    db.transaction(() => {
+      if (currentVersion === 6) {
+        db.exec(`
+          ALTER TABLE tool_uses RENAME TO old_tool_uses;
+
+          CREATE TABLE tool_uses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversationId INTEGER NOT NULL,
+            toolCallId TEXT NOT NULL,
+            toolName TEXT NOT NULL,
+            inputParams TEXT NOT NULL,
+            output TEXT NOT NULL,
+            timestamp BIGINT NOT NULL,
+            duration INTEGER NOT NULL,
+            FOREIGN KEY (conversationId) REFERENCES conversations (id)
+          );
+
+          INSERT INTO tool_uses
+            (id, conversationId, toolCallId, toolName, inputParams, output, timestamp, duration)
+          SELECT
+            id, conversationId, CAST(stepId AS TEXT), toolName, inputParams, output, timestamp, duration
+          FROM old_tool_uses;
+
+          DROP TABLE old_tool_uses;
+        `);
+      } else if (currentVersion === 7) {
+        // Apply fix for databases that are mistakenly stuck at version 7
+        const columnExists = db
+          .query(
+            `
+          SELECT 1 FROM pragma_table_info('tool_uses') WHERE name='toolCallId'
+        `,
+          )
+          .get();
+
+        if (!columnExists) {
+          db.exec(`
+            ALTER TABLE tool_uses RENAME TO old_tool_uses;
+
+            CREATE TABLE tool_uses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              conversationId INTEGER NOT NULL,
+              toolCallId TEXT NOT NULL,
+              toolName TEXT NOT NULL,
+              inputParams TEXT NOT NULL,
+              output TEXT NOT NULL,
+              timestamp BIGINT NOT NULL,
+              duration INTEGER NOT NULL,
+              FOREIGN KEY (conversationId) REFERENCES conversations (id)
+            );
+
+            INSERT INTO tool_uses
+              (id, conversationId, toolCallId, toolName, inputParams, output, timestamp, duration)
+            SELECT
+              id, conversationId, CAST(stepId AS TEXT), toolName, inputParams, output, timestamp, duration
+            FROM old_tool_uses;
+
+            DROP TABLE old_tool_uses;
+          `);
+        }
+      }
+      db.run("UPDATE db_version SET version = ?;", [LATEST_DB_VERSION]);
+    })();
+
+    logger.debug(`Database migrated to version ${LATEST_DB_VERSION}`);
+  } else {
+    logger.debug(`Database version is current: ${currentVersion}`);
+  }
+}
+
+export { Database };

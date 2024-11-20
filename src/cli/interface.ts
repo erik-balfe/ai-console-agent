@@ -138,7 +138,8 @@ export async function displayOptionsAndGetInput(
     ...options.map((option) => ({ value: option, name: option })),
     new Separator(),
     { name: "Custom answer", value: "CUSTOM" },
-    { name: "Exit", value: "ABORT" },
+    { name: "cancel", value: "ABORT" },
+    { name: "Exit program", value: "EXIT_PROGRAM" },
   ];
 
   try {
@@ -158,6 +159,10 @@ export async function displayOptionsAndGetInput(
 
     if (answer === "ABORT") {
       return "<input_aborted_by_user />";
+    }
+
+    if (answer === "EXIT_PROGRAM") {
+      return "<exit />";
     }
 
     return answer;

@@ -1,12 +1,13 @@
 import type { ChatMessage } from "llamaindex";
 import { OpenAIAgent } from "llamaindex";
 import { DynamicContextData, gatherContextData } from "../cli/contextUtils";
-import { MESSAGE_ROLES, MODELS, WEAK_MODEL_ID } from "../constants";
+import { MESSAGE_ROLES, WEAK_MODEL_ID } from "../constants";
 import { getCorrectness, getFaithfulness, getRelevancy } from "../features/userScore/evaluations/evaluations";
 import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationScore";
-import { askUserCallback } from "../tools/askUser";
+import { askUserCallback, UserCliResponse } from "../tools/askUser";
 import { createExecuteCommandTool } from "../tools/executeCommand";
 import { AppConfig, loadConfig } from "../utils/config";
+import { countUsageCost } from "../utils/countUsageCost";
 import {
   insertConversation as createConversation,
   Database,
@@ -17,81 +18,86 @@ import {
 import { formatAgentMessage } from "../utils/formatting";
 import { generateConversationTitle } from "../utils/generateConversationTitle";
 import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
-import { UsageCostResult } from "../utils/interface";
 import { logger, LogLevel, LogLevelType } from "../utils/logger";
 import { parseLLMResponse } from "../utils/parseLLMResponse";
 import { initializeRun } from "../utils/runManager";
-import { buildSystemMessage } from "./buildSystemMessage";
-import { getStoredConversationDataStrins, saveConversationDocument } from "./chatHistory";
+import { buildConstantSystemMessage, bulidVariableSystemMessage } from "./buildSystemMessage";
+import { constructChatHistory, getMemories, saveConversationDocument } from "./chatHistory";
 import { getAiAgent } from "./getAiAgent";
 import { parseAgentMessage, ParsedAgentMessage } from "./parseAgentResponseContent";
 
 export async function agentLoop(consoleInput: string, db: Database, appConfig: AppConfig) {
-  let questionForUser: string = "You can type your query here or exit the program:";
+  let questionForUser: string = "What you your task or question to Ai-console-agent?:";
   let userQuery = consoleInput;
-  let parsedAgentAnswer;
-  let initialConversationQuery;
+  let agentMessage;
+  let userMessage: UserCliResponse | null = {
+    cancelled: false,
+    exitProgram: false,
+    answer: consoleInput,
+    duration: 0,
+  };
 
-  while (!initialConversationQuery?.cancelled) {
-    if (!userQuery) {
-      initialConversationQuery = await askUserCallback({
+  // cycle through different conversation
+  while (!userMessage?.exitProgram) {
+    const startTime = Date.now();
+    let conversationCost = 0;
+    if (!userQuery || !userMessage || userMessage.cancelled) {
+      userMessage = await askUserCallback({
         question: questionForUser,
       });
-
-      if (initialConversationQuery.cancelled) {
-        logger.info("User cancelled the query");
-        break;
-      }
-      userQuery = initialConversationQuery.answer;
+      userQuery = userMessage.answer;
     }
-    const startTime = Date.now();
+
+    if (userMessage.exitProgram) {
+      logger.info("User pressed exit program");
+      break;
+    }
+    if (userMessage.cancelled) {
+      logger.info("User cancelled the conversation");
+      continue;
+    }
+
     const conversationId = await createConversation(db, userQuery, startTime);
 
+    // cycle throught question-answer message pairs in the conversation
     do {
       logger.debug("Running agent with user query");
-
-      const agentResponse = await runAgent(
-        userQuery,
-        db,
-        appConfig.model,
-        appConfig.logLevel,
-        conversationId,
-      );
-
-      parsedAgentAnswer = agentResponse.parsedAgentMessage;
-      logger.info(`Agent response received: ${JSON.stringify(parsedAgentAnswer)}`);
-
-      // Always print informUserMessages if they exist
-      if (parsedAgentAnswer.informUserMessages.length > 0) {
-        parsedAgentAnswer.informUserMessages.forEach((message) => {
-          console.write(formatAgentMessage(message));
-        });
-      }
-
-      if (parsedAgentAnswer.taskComplete) {
-        logger.info("agent confirms task is complete");
-        userQuery = "";
-        break;
+      agentMessage = await runAgent(userQuery, db, appConfig.model, appConfig.logLevel, conversationId);
+      conversationCost += agentMessage.cost;
+      logger.info(`Agent task response received: ${JSON.stringify(agentMessage)}`);
+      console.write(formatAgentMessage(agentMessage.responseContent));
+      if (agentMessage.parts.taskComplete) {
+        logger.info("agent decided to end the conversation");
+        continue;
       }
 
       // Handle user interaction
-      if (parsedAgentAnswer.questionToUser) {
+      if (agentMessage.parts.questionToUser) {
         logger.debug("Agent asked a follow-up question");
-        const userResponse = await askUserCallback(parsedAgentAnswer.questionToUser);
-        userQuery = userResponse.answer;
-        logger.info(`User answered: ${userQuery}`);
+        userMessage = await askUserCallback(agentMessage.parts.questionToUser);
+        userQuery = userMessage.answer;
+        logger.info(`User answered: ${JSON.stringify(userMessage)}`);
       } else {
-        // If there's no specific question but we need user input
-        const userMessage = await askUserCallback({
-          question: "Do you want to continue or is there anything else you'd like me to do?",
+        userMessage = await askUserCallback({
+          question: "User:",
         });
         userQuery = userMessage.answer;
-        if (userMessage.cancelled) {
-          console.log("Saving conversation data and exiting");
-        }
       }
-    } while (!parsedAgentAnswer?.taskComplete);
+      if (userMessage.cancelled) {
+        console.log("Saving conversation data and exiting");
+      }
+    } while (!agentMessage?.taskComplete && !userMessage?.cancelled && !userMessage.exitProgram);
+
+    logger.info(`Conversation complete. Cost: $${conversationCost.toFixed(3)}`);
+    const duration = Date.now() - startTime;
+    await finalizeAgentRun(db, conversationId, duration, agentMessage.responseContent);
+    if (!userMessage?.exitProgram) {
+      userQuery = "";
+      userMessage = null;
+      agentMessage = null;
+    }
   }
+  logger.debug("highest cycle end");
 }
 
 export async function runAgent(
@@ -104,9 +110,6 @@ export async function runAgent(
   logger.debug("Starting runAgent");
   const startTime = Date.now();
 
-  if (input === "<input_aborted_by_user />") {
-    input = "<service_message>User expressed explicit intent to exit the program.</service_message>";
-  }
   const apiKey = await getOrPromptForAPIKey(model);
   if (!apiKey) {
     logger.error("No API key found");
@@ -130,9 +133,43 @@ export async function runAgent(
     modelId: model,
     tools: [executeCommandTool],
   });
+  logger.debug("Preparing to send request to LLM API");
+  messages.forEach((message, index) => {
+    const contentPreview =
+      message.content.length > 360
+        ? `${message.content.slice(0, 300)}...[TRUNCATED]...${message.content.slice(-60)}`
+        : message.content;
+    logger.debug(
+      `Message #${index + 1}: role=${message.role}, content="${contentPreview}", length=${message.content.length}`,
+    );
 
-  logger.debug("Executing user task");
-  const { responseContent, parsedAgentMessage, totalCost } = await executeTask(
+    if (message.options && message.options.toolCall) {
+      message.options.toolCall.forEach((toolCall, callIndex) => {
+        logger.debug(
+          `Tool Call #${callIndex + 1} for message #${index + 1}: toolName=${toolCall.name}, input=${JSON.stringify(
+            toolCall.input,
+          )}`,
+        );
+      });
+    }
+
+    if (message.options && message.options.toolResult) {
+      logger.debug(
+        `Tool Result for message #${index + 1}: result=${JSON.stringify(
+          message.options.toolResult.result.slice(0, 300),
+        )}`,
+      );
+    }
+  });
+  logger.debug("Task message content to be sent: ");
+  if (taskMessageContent.length > 360) {
+    logger.debug(
+      `Role=user, content="${taskMessageContent.slice(0, 300)}...[LOG_TRUNCATED]...${taskMessageContent.slice(-60)}", length=${taskMessageContent.length}`,
+    );
+  } else {
+    logger.debug(`Role=user, content="${taskMessageContent}", length=${taskMessageContent.length}`);
+  }
+  const { responseContent, parts, cost } = await executeTask(
     agent,
     taskMessageContent,
     db,
@@ -144,12 +181,7 @@ export async function runAgent(
   const totalTime = Date.now() - startTime;
   logger.debug(`Task completed in ${totalTime}ms`);
 
-  if (parsedAgentMessage.taskComplete) {
-    logger.debug("Finalizing agent run");
-    await finalizeAgentRun(db, conversationId, totalTime, responseContent, input);
-  }
-
-  return { parsedAgentMessage, responseContent, totalCost };
+  return { parts, responseContent, cost };
 }
 
 async function prepareMessages(
@@ -161,14 +193,27 @@ async function prepareMessages(
   conversationId: number,
 ): Promise<ChatMessage[]> {
   logger.debug("Building system message");
-  const { memories, chatHistory } = await getStoredConversationDataStrins(userQuery, db, conversationId);
+  const memories = await getMemories(userQuery);
+  logger.debug(`momorues added. ${memories.length} items. ${memories.slice(0, 300)}`);
+  const chatHistory = await constructChatHistory(db, conversationId);
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildSystemMessage(runDir, contextData, config, userQuery, memories, chatHistory),
+      content: buildConstantSystemMessage(),
+      options: {
+        cache_control: {
+          type: "ephemeral",
+        },
+      },
     },
+    {
+      role: "system",
+      content: bulidVariableSystemMessage(runDir, contextData, config, userQuery, memories),
+    },
+    ...chatHistory,
   ];
 
+  logger.debug("messages length, (symbols):", JSON.stringify(messages).length);
   return messages;
 }
 
@@ -184,7 +229,7 @@ async function executeTask(
   let lastTextContent: string | null = null; // Keep track of the last meaningful text message
   let parsedAgentMessage: ParsedAgentMessage | null = null;
   let stepNumber = 0;
-  let totalCost = 0;
+  let taskCost = 0;
 
   logger.debug("Starting task execution");
 
@@ -197,10 +242,8 @@ async function executeTask(
       const parsedResponse = parseLLMResponse(stepOutput);
       if (parsedResponse.usage) {
         const costInfo = countUsageCost(parsedResponse.usage, model);
-        totalCost += costInfo.costUSD;
-        logger.info(
-          `Step cost: $${costInfo.costUSD.toFixed(6)}, Total cost so far: $${totalCost.toFixed(6)}`,
-        );
+        taskCost += costInfo.costUSD;
+        logger.info(`Step cost: $${costInfo.costUSD.toFixed(6)}, Total cost so far: $${taskCost.toFixed(6)}`);
       }
       responseContent = parsedResponse.content;
 
@@ -242,8 +285,8 @@ async function executeTask(
   // Use the last meaningful text message instead of the potentially empty final message
   return {
     responseContent: lastTextContent ?? "",
-    parsedAgentMessage: parsedAgentMessage as any,
-    totalCost,
+    parts: parsedAgentMessage,
+    cost: taskCost,
   };
 }
 
@@ -270,7 +313,6 @@ async function finalizeAgentRun(
   conversationId: number,
   totalTime: number,
   finalResponse: string,
-  input: string,
 ): Promise<void> {
   logger.debug("Starting finalization");
   const fullConversation = getAllConversationData(db, conversationId);
@@ -302,29 +344,4 @@ async function finalizeAgentRun(
   logger.debug("Saving conversation document");
   await saveConversationDocument(db, conversationId);
   logger.debug("Finalization complete");
-}
-
-function countUsageCost(usage: Record<string, number>, model: string): UsageCostResult {
-  // Get model pricing from the current model being used
-  const modelConfig = MODELS[model] ?? MODELS["gpt-4o-mini"]; // fallback to a default model
-
-  // Normalize token counts from different possible field names
-  const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
-  const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
-
-  // Calculate costs
-  const inputCost = inputTokens * modelConfig.price.input;
-  const outputCost = outputTokens * modelConfig.price.output;
-  const totalCost = inputCost + outputCost;
-
-  return {
-    costUSD: totalCost,
-    details: {
-      inputTokens,
-      outputTokens,
-      inputCost,
-      outputCost,
-      totalCost,
-    },
-  };
 }

@@ -33,7 +33,7 @@ export const VECTOR_STORE_PATH = path.join(CONFIG_DIR_PATH, "vector_store");
 
 export const MESSAGE_ROLES = {
   USER: "user",
-  AGENT: "agent",
+  AGENT: "assistant",
   SYSTEM: "system",
 } as const;
 
@@ -76,6 +76,7 @@ export const MODELS: Record<string, AIModelConfig> = {
     price: {
       input: 0.15 / 1000000,
       output: 0.6 / 1000000,
+      inputCacheHit: 0.075 / 1000000,
     },
     priceDesc: "$0.26/1M tokens",
     supportsVision: true,
@@ -90,6 +91,7 @@ export const MODELS: Record<string, AIModelConfig> = {
     price: {
       input: 2.5 / 1000000,
       output: 10 / 1000000,
+      inputCacheHit: 1.25 / 1000000,
     },
     priceDesc: "$4.38/1M tokens",
     supportsVision: true,
@@ -104,6 +106,7 @@ export const MODELS: Record<string, AIModelConfig> = {
     price: {
       input: 3 / 1000000,
       output: 15 / 1000000,
+      inputCacheHit: 0.3 / 1000000,
     },
     priceDesc: "$6.00/1M tokens",
     supportsVision: true,
@@ -118,12 +121,13 @@ export const MODELS: Record<string, AIModelConfig> = {
     price: {
       input: 1 / 1000000,
       output: 5 / 1000000,
+      inputCacheHit: 0.1 / 1000000,
     },
     priceDesc: "$2.00/1M tokens",
     supportsVision: false,
     functionCalling: true,
     knowledgeCutoff: "July 2024",
-    default: true, // Haiku model is the default
+    default: true,
   },
   "llama3-groq-70b-8192-tool-use-preview": {
     id: "llama3-groq-70b-8192-tool-use-preview",

@@ -61,11 +61,16 @@ export async function generateConversationTitle(
       ],
     });
 
-    // Step 4: Log the generated title
-    logger.debug("Title generated successfully");
-    logger.debug(`Generated Title: ${response.message.content}`);
+    const answerText =
+      typeof response.message.content === "string"
+        ? response.message.content
+        : response.message.content[0]?.text;
 
-    return response.message.content;
+    logger.debug("Title generated successfully");
+    logger.debug(`Generated Title raw:  ${JSON.stringify(response)}`);
+    logger.debug(`Generated Title:  ${JSON.stringify(answerText)}`);
+
+    return answerText;
   } catch (error) {
     logger.error("Error generating conversation title:", error);
     throw error; // Rethrow error after logging

@@ -1,8 +1,5 @@
-import { FunctionTool } from "llamaindex";
 import { displayOptionsAndGetInput } from "../cli/interface";
-import { Database } from "../utils/database";
 import { logger } from "../utils/logger";
-import { createToolMiddleware } from "./toolMiddleware";
 
 interface AskUserParams {
   question: string;
@@ -10,9 +7,16 @@ interface AskUserParams {
   withoutFreeAnswer?: boolean;
 }
 
+export interface UserCliResponse {
+  answer: string;
+  duration: number;
+  cancelled?: boolean;
+  exitProgram?: boolean;
+}
+
 export async function askUserCallback(
   params: AskUserParams,
-): Promise<{ answer: string; duration: number; cancelled?: boolean }> {
+): Promise<{ answer: string; duration: number; cancelled?: boolean; exitProgram?: boolean }> {
   logger.debug("Starting userInteractionTool");
   const startTime = Date.now();
   let duration = 0;
@@ -27,6 +31,9 @@ export async function askUserCallback(
     logger.debug(`User response: ${result}, duration: ${duration}ms`);
     if (result === "<input_aborted_by_user />") {
       return { cancelled: true, duration, answer: result };
+    }
+    if (result === "<exit />") {
+      return { exitProgram: true, duration, answer: result };
     }
     return { answer: result, duration };
   } catch (error) {

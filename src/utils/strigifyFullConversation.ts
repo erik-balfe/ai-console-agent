@@ -27,7 +27,7 @@ export function strigifyFullConversation(
     } else {
       const tool = toolCalls[toolIndex];
       result.push(
-        `<toolCall name="${tool.name}" time="${dateToReadableFormat(new Date(tool.timestamp))}"><input>${tool.inputParams}</input><output>${tool.output}</output></toolCall>`,
+        `<toolCall name="${tool.toolName}" time="${dateToReadableFormat(new Date(tool.timestamp))}"><input>${tool.inputParams}</input><output>${tool.output}</output></toolCall>`,
       );
       toolIndex++;
     }
@@ -46,7 +46,7 @@ export function strigifyFullConversation(
   while (toolIndex < toolCalls.length) {
     const tool = toolCalls[toolIndex];
     result.push(
-      `<toolCall name="${tool.name}" time="${dateToReadableFormat(new Date(tool.timestamp))}"><input>${tool.inputParams}</input><output>${tool.output}</output></toolCall>`,
+      `<toolCall name="${tool.toolName}" time="${dateToReadableFormat(new Date(tool.timestamp))}"><input>${tool.inputParams}</input><output>${tool.output}</output></toolCall>`,
     );
     toolIndex++;
   }

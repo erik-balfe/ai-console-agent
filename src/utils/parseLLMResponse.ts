@@ -2,8 +2,8 @@ import { getCircularReplacer } from "./getCircularReplacer";
 import { logger } from "./logger";
 
 export function parseLLMResponse(response: any) {
-  let textAnswer: string | null = null; // Changed to allow null
-  logger.debug("response to parse:", JSON.stringify(response, getCircularReplacer(), 2));
+  let textAnswer: string | null = null;
+  // logger.debug("response to parse:", JSON.stringify(response, getCircularReplacer(), 2));
 
   if (typeof response.output?.message.content === "string") {
     textAnswer = response.output.message.content;

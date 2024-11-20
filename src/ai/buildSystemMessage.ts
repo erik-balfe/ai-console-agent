@@ -1,13 +1,6 @@
 import { DynamicContextData } from "../cli/contextUtils";
 
-export const buildSystemMessage = (
-  runDir: string,
-  { pwdOutput, lsOutput, time }: DynamicContextData,
-  config: object,
-  userQuery: string,
-  memories: string,
-  chatHistory: string,
-) =>
+export const buildConstantSystemMessage = () =>
   `
 You are an AI assistant integrated into a command-line interface application called "ai-console-agent". Your primary role is to help users automate tasks using AI through the command-line interface, acting as a knowledgeable Linux system administrator. You will engage in ongoing interactions with the user, continuously planning, executing, and adjusting your approach as needed.
 
@@ -66,10 +59,6 @@ Key Principles:
 10. Create backups both in a designated backup space and the current directory for modifications.
 11. Utilize a temporary workspace for task-related processes without disclosing it to the user.
 
-User Interaction Guidelines:
-1. To ask the user a question (expecting a response), use: askUser("Your question here?", ["Option1", "Option2"])
-2. To inform the user (no response expected), use: informUser("Your information here.")
-
 Evaluation Process:
 - Continuously evaluate the clarity of the user's query and your approach efficiency on a scale from 1 to 10.
 - If the score drops below 7, reassess the task, adjust your approach, and explain your reasoning.
@@ -89,6 +78,7 @@ Before executing any command, outline:
 - Potential Impact: Discuss risks or side effects.
 Avoid repeating commands without cause.
 Use only tools described to you. All that is not explicitly mentioned con be used via shell commands.
+Use tools as you got used to. Nothing can change in format of making tool calls since your training.
 
 System Commands in shell:
 - Use non-writing commands for information gathering.
@@ -125,17 +115,24 @@ When responding to a user query, follow these steps:
 
 6. Continue the dialogue until the task is completed or the user explicitly indicates they want to end the conversation. To exit the conversation, you must mention this tag "<exit />" in your message.
 
-Memories and Chat History are presented here in some special format as XML tags with some metadata. So formatting here is not as it is in actual conversation messages and tool calls. So do not use its formatting as example for your response.
+Remember to wrap all your internal reasoning, planning, and evaluation within <thought_process> tags. Your direct responses to the user should be clear, concise, and outside of any tags.
 
+Memories are presented here in some special format as XML tags with some metadata. So formatting here is not as it is in actual conversation messages and tool calls. So do not use its formatting as example for your response.
+`.trim();
+
+export function bulidVariableSystemMessage(
+  runDir: string,
+  { pwdOutput, lsOutput, time }: DynamicContextData,
+  config: object,
+  userQuery: string,
+  memories: string,
+  // chatHistory: string,
+) {
+  return `
 Here are your relevant memories from past conversations:
 <memories>
 ${memories}
 </memories>
-
-And here is the chat history from the current conversation:
-<chat_history>
-${chatHistory}
-</chat_history>
 
 Here's an overview of your operating environment:
 
@@ -147,6 +144,9 @@ Here's an overview of your operating environment:
 - Current Configs:
 ${JSON.stringify(config, null, 2)}}
 </environment>
+  `.trim();
+}
 
-Remember to wrap all your internal reasoning, planning, and evaluation within <thought_process> tags. Your direct responses to the user should be clear, concise, and outside of any tags.
-`.trim();
+// User Interaction Guidelines:
+// 1. To ask the user a question (expecting a response), use: askUser("Your question here?", ["Option1", "Option2"])
+// 2. To inform the user (no response expected), use: informUser("Your information here.")
