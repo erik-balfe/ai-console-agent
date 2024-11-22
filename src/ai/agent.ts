@@ -1,7 +1,7 @@
 import type { ChatMessage } from "llamaindex";
 import { OpenAIAgent } from "llamaindex";
 import { DynamicContextData, gatherContextData } from "../cli/contextUtils";
-import { MESSAGE_ROLES, WEAK_MODEL_ID } from "../constants";
+import { ContextAllocation, MESSAGE_ROLES, WEAK_MODEL_ID } from "../constants";
 import { getCorrectness, getFaithfulness, getRelevancy } from "../features/userScore/evaluations/evaluations";
 import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationScore";
 import { askUserCallback, UserCliResponse } from "../tools/askUser";
@@ -26,7 +26,12 @@ import { constructChatHistory, getMemories, saveConversationDocument } from "./c
 import { getAiAgent } from "./getAiAgent";
 import { parseAgentMessage, ParsedAgentMessage } from "./parseAgentResponseContent";
 
-export async function agentLoop(consoleInput: string, db: Database, appConfig: AppConfig) {
+export async function agentLoop(
+  consoleInput: string,
+  db: Database,
+  appConfig: AppConfig,
+  contextAllocation: ContextAllocation,
+) {
   let questionForUser: string = "What you your task or question to Ai-console-agent?:";
   let userQuery = consoleInput;
   let agentMessage;
@@ -62,7 +67,14 @@ export async function agentLoop(consoleInput: string, db: Database, appConfig: A
     // cycle throught question-answer message pairs in the conversation
     do {
       logger.debug("Running agent with user query");
-      agentMessage = await runAgent(userQuery, db, appConfig.model, appConfig.logLevel, conversationId);
+      agentMessage = await runAgent(
+        userQuery,
+        db,
+        appConfig.model,
+        appConfig.logLevel,
+        conversationId,
+        contextAllocation,
+      );
       conversationCost += agentMessage.cost;
       logger.info(`Agent task response received: ${JSON.stringify(agentMessage)}`);
       console.write(formatAgentMessage(agentMessage.responseContent));
@@ -106,6 +118,7 @@ export async function runAgent(
   model: string,
   logLevel: LogLevelType,
   conversationId: number,
+  contextAllocation: ContextAllocation,
 ) {
   logger.debug("Starting runAgent");
   const startTime = Date.now();
@@ -119,7 +132,15 @@ export async function runAgent(
   const runDir = initializeRun(input);
   const config = loadConfig();
   const contextData = await gatherContextData();
-  const messages = await prepareMessages(input, runDir, contextData, config, db, conversationId);
+  const messages = await prepareMessages(
+    input,
+    runDir,
+    contextData,
+    config,
+    db,
+    conversationId,
+    contextAllocation,
+  );
   const taskMessageContent = `
     Now, please process the following user query:
     <user_query>
@@ -191,11 +212,13 @@ async function prepareMessages(
   config: object,
   db: Database,
   conversationId: number,
+  contextAllocation: ContextAllocation,
 ): Promise<ChatMessage[]> {
   logger.debug("Building system message");
   const memories = await getMemories(userQuery);
   logger.debug(`momorues added. ${memories.length} items. ${memories.slice(0, 300)}`);
-  const chatHistory = await constructChatHistory(db, conversationId);
+
+  const chatHistory = await constructChatHistory(db, conversationId, contextAllocation.chatHistory);
   const messages: ChatMessage[] = [
     {
       role: "system",

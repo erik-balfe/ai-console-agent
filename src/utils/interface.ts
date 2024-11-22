@@ -30,3 +30,5 @@ export interface UsageCostResult {
     totalCost: number;
   };
 }
+
+export type ConversationEntry = AgentMessage | ToolCall;

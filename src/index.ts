@@ -8,6 +8,7 @@ import { EMBEDDINGS_MODEL_ID, MAX_INPUT_LENGTH } from "./constants";
 import { deleteAPIKey } from "./utils/apiKeyManager";
 import { loadConfig, saveConfig } from "./utils/config";
 import { initializeDatabase } from "./utils/database";
+import { getContextAllocation } from "./utils/getContextAllocation";
 import { getOrPromptForAPIKey, getProviderFromModel } from "./utils/getOrPromptForAPIKey";
 import { logger, LogLevel } from "./utils/logger";
 
@@ -87,11 +88,13 @@ async function main() {
       );
       return;
     }
+    const contextAllocation = getContextAllocation(appConfig.model);
+
     try {
       logger.debug("Starting user interaction loop");
       let userQuery = input;
       logger.debug(`Initial user query: ${userQuery}`);
-      await agentLoop(userQuery, db, appConfig);
+      await agentLoop(userQuery, db, appConfig, contextAllocation);
     } catch (error) {
       if (error instanceof APIError) {
         if (error.status === 401) {

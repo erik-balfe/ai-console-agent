@@ -36,7 +36,9 @@ export async function initializeDatabase(): Promise<Database> {
   try {
     const db = new Database(DB_PATH, { create: true });
 
-    const currentVersion = db.query("SELECT version FROM db_version").get();
+    const currentVersion = db.query("SELECT version FROM db_version").get() as
+      | { version: number }
+      | undefined;
     if (currentVersion) {
       logger.debug(`Database version found: ${currentVersion.version}`);
     } else {
@@ -319,8 +321,51 @@ export function getAllConversationData(
   return { messages, toolCalls, conversationData };
 }
 
+export function getRecentConversationsData(db: Database): {
+  entries: ConversationEntry[];
+  conversations: Conversation[];
+} {
+  // 2 days for now
+  const startTime = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const conversationIds: number[] = db
+    .query("SELECT id FROM conversations WHERE timestamp >= ? ORDER BY timestamp DESC")
+    .all(startTime)
+    .map((convo: { id: number }) => convo.id);
+
+  const conversations: Conversation[] = [];
+  const recentEntries: ConversationEntry[] = conversationIds.flatMap((conversationId) => {
+    const conversationData = getConversation(db, conversationId);
+
+    if (conversationData) {
+      conversations.push(conversationData);
+    }
+
+    const steps = db
+      .query("SELECT content, role, timestamp FROM messages WHERE conversationId = ? ORDER BY timestamp ASC")
+      .all(conversationId) as Array<{ content: string; role: MessageRole; timestamp: number }>;
+
+    const toolCalls = db
+      .query(
+        "SELECT toolName, toolCallId, inputParams, output, timestamp, duration FROM tool_uses WHERE conversationId = ? ORDER BY timestamp ASC",
+      )
+      .all(conversationId) as Array<ToolCall>;
+
+    const messages: AgentMessage[] = steps.map((step) => ({
+      role: step.role,
+      content: step.content,
+      timestamp: step.timestamp,
+    }));
+
+    return [...messages, ...toolCalls];
+  });
+
+  return { entries: recentEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)), conversations };
+}
+
 async function migrateDatabase(db: Database): Promise<void> {
-  const currentVersionRow = db.query("SELECT version FROM db_version").get();
+  const currentVersionRow = db.query("SELECT version FROM db_version").get() as
+    | { version: number }
+    | undefined;
   const currentVersion = currentVersionRow ? currentVersionRow.version : 0;
 
   if (currentVersion < LATEST_DB_VERSION) {

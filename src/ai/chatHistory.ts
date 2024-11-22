@@ -1,9 +1,13 @@
 import { ChatMessage, MetadataMode, VectorStoreIndex } from "llamaindex";
 import { addConversationDocument, initializeVectorStoreIndex } from "../ai/retrieval/vectorStore";
 import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
-import { ConversationMetadata, Database, getAllConversationData } from "../utils/database";
+import {
+  ConversationMetadata,
+  Database,
+  getAllConversationData,
+  getRecentConversationsData,
+} from "../utils/database";
 import { logger } from "../utils/logger";
-import { mergeSortedArrays } from "../utils/mergeSortedArrays";
 import { strigifyFullConversation } from "../utils/strigifyFullConversation";
 
 export async function saveConversationDocument(db: Database, conversationId: number): Promise<void> {
@@ -123,12 +127,14 @@ function constructFormattedChatHistory(sortedMessagesAndToolCalls: any[]): ChatM
   return chatHistory;
 }
 
-export async function constructChatHistory(db: Database, conversationId: number): Promise<ChatMessage[]> {
-  const fullCurrentConversationData = getAllConversationData(db, conversationId);
-  const sortedMessagesAndToolCalls = mergeSortedArrays(
-    fullCurrentConversationData.messages,
-    fullCurrentConversationData.toolCalls,
-  );
+export async function constructChatHistory(
+  db: Database,
+  conversationId: number,
+  contextAllocation: ContextAllocationItem,
+): Promise<ChatMessage[]> {
+  const lastConversationsData = getRecentConversationsData(db);
+  const sortedMessagesAndToolCalls = lastConversationsData.entries;
+  const { conversations } = lastConversationsData;
   logger.debug("sortedMessagesAndToolCalls:", sortedMessagesAndToolCalls.length);
 
   // Enhanced logging for conversation history
@@ -143,7 +149,11 @@ export async function constructChatHistory(db: Database, conversationId: number)
       logger.debug(`Tool Call [${index}] Name: ${item.toolName}, Input: ${JSON.stringify(item.inputParams)}`);
     }
   });
-  return constructFormattedChatHistory(sortedMessagesAndToolCalls);
+  // todo: check limits in current context window allocation
+
+  const fullChatHistory = sortedMessagesAndToolCalls;
+  const limitedChatHistory = await limitChatHistory(fullChatHistory, contextAllocation);
+  return constructFormattedChatHistory(limitedChatHistory);
 }
 
 export async function getMemories(input: string): Promise<string> {
@@ -195,4 +205,16 @@ function truncateText(
     truncatedText: truncated,
     wasLimit: `Text was truncated from ${text.length} to ${truncated.length} characters`,
   };
+}
+
+async function limitChatHistory(
+  fullChatHistory: ConversationEntry[],
+  contextLimit: ContextAllocationItem,
+): Promise<ConversationEntry[]> {
+  const chatHistoryLimit = CONTEXT_ALLOCATION.chatHistory.maxTokens;
+  const limitedChatHistory: ConversationEntry[] = fullChatHistory;
+  // MOCK
+  // todo: implement
+
+  return limitedChatHistory;
 }

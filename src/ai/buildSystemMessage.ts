@@ -113,8 +113,6 @@ When responding to a user query, follow these steps:
 
 5. Continuously evaluate your progress and adjust your approach as needed. If you need to change your plan or approach, explain your reasoning inside <thought_process> tags.
 
-6. Continue the dialogue until the task is completed or the user explicitly indicates they want to end the conversation. To exit the conversation, you must mention this tag "<exit />" in your message.
-
 Remember to wrap all your internal reasoning, planning, and evaluation within <thought_process> tags. Your direct responses to the user should be clear, concise, and outside of any tags.
 
 Memories are presented here in some special format as XML tags with some metadata. So formatting here is not as it is in actual conversation messages and tool calls. So do not use its formatting as example for your response.
@@ -150,3 +148,5 @@ ${JSON.stringify(config, null, 2)}}
 // User Interaction Guidelines:
 // 1. To ask the user a question (expecting a response), use: askUser("Your question here?", ["Option1", "Option2"])
 // 2. To inform the user (no response expected), use: informUser("Your information here.")
+
+// 6. Continue the dialogue until the task is completed or the user explicitly indicates they want to end the conversation. To exit the conversation, you must mention this tag "<exit />" in your message.

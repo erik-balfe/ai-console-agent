@@ -155,9 +155,13 @@ export interface ContextAllocation {
   memories: ContextAllocationItem;
   chatHistory: ContextAllocationItem;
   toolOutput: ContextAllocationItem;
+  systemMessage: {
+    staticPart: ContextAllocationItem;
+    dynamicPart: ContextAllocationItem;
+  };
 }
 
-export const CONTEXT_ALLOCATION = {
+export const CONTEXT_ALLOCATION: ContextAllocation = {
   memories: {
     maxTokens: 10000,
     assumedTokenSize: 4,
@@ -172,6 +176,18 @@ export const CONTEXT_ALLOCATION = {
     maxTokens: 5000,
     assumedTokenSize: 4,
     maxChars: 20000,
+  },
+  systemMessage: {
+    staticPart: {
+      maxTokens: 2000,
+      assumedTokenSize: 4,
+      maxChars: 8000,
+    },
+    dynamicPart: {
+      maxTokens: 500,
+      assumedTokenSize: 4,
+      maxChars: 1000,
+    },
   },
 };
 
