@@ -2,9 +2,9 @@ import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "path";
-import { MessageRole } from "../constants";
+import { MessageRole, RECENCY_RANGE } from "../constants";
 import { getUserHomeDir } from "./getUserHomeDir";
-import { AgentMessage, ToolCall } from "./interface";
+import { AgentMessage, ConversationEntry, ToolCall } from "./interface";
 import { logger } from "./logger";
 
 const DB_PATH = path.join(getUserHomeDir(), ".ai-console-agent", "chat_history.db");
@@ -312,6 +312,7 @@ export function getAllConversationData(
     role: step.role,
     content: step.content,
     timestamp: step.timestamp,
+    conversationId,
   }));
 
   if (!conversationData) {
@@ -321,15 +322,37 @@ export function getAllConversationData(
   return { messages, toolCalls, conversationData };
 }
 
+export function getLastConversationEntry(db: Database): ConversationEntry | undefined {
+  const latestMessage = db
+    .query("SELECT content, role, timestamp FROM messages ORDER BY timestamp DESC LIMIT 1")
+    .get() as ConversationEntry;
+
+  const latestToolCall = db
+    .query(
+      "SELECT toolName, toolCallId, inputParams, output, timestamp FROM tool_uses ORDER BY timestamp DESC LIMIT 1",
+    )
+    .get() as ConversationEntry;
+
+  if (!latestMessage && !latestToolCall) {
+    return undefined;
+  }
+
+  const latestEntry =
+    !latestToolCall || (latestMessage && latestMessage.timestamp > latestToolCall.timestamp)
+      ? latestMessage
+      : latestToolCall;
+
+  return latestEntry ? (latestEntry as ConversationEntry) : undefined;
+}
+
 export function getRecentConversationsData(db: Database): {
   entries: ConversationEntry[];
   conversations: Conversation[];
 } {
-  // 2 days for now
-  const startTime = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const recencyCutoffTime = Date.now() - RECENCY_RANGE;
   const conversationIds: number[] = db
     .query("SELECT id FROM conversations WHERE timestamp >= ? ORDER BY timestamp DESC")
-    .all(startTime)
+    .all(recencyCutoffTime)
     .map((convo: { id: number }) => convo.id);
 
   const conversations: Conversation[] = [];
@@ -354,6 +377,7 @@ export function getRecentConversationsData(db: Database): {
       role: step.role,
       content: step.content,
       timestamp: step.timestamp,
+      conversationId,
     }));
 
     return [...messages, ...toolCalls];

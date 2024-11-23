@@ -76,7 +76,7 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
 
   return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
     name: "bash",
-    description: `Execute a shell command on the user's host system.
+    description: `Execute a shell command on the user's host system in a dedicated terminal session. Session is separated from user's current shell session.
 - Interactive commands (e.g. 'git commit' requiring editor) are not supported and must be avoided.
 - Output limited to ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters.
 - Avoid commands producing large output.

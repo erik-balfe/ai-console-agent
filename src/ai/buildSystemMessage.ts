@@ -123,15 +123,9 @@ export function bulidVariableSystemMessage(
   { pwdOutput, lsOutput, time }: DynamicContextData,
   config: object,
   userQuery: string,
-  memories: string,
   // chatHistory: string,
 ) {
   return `
-Here are your relevant memories from past conversations:
-<memories>
-${memories}
-</memories>
-
 Here's an overview of your operating environment:
 
 <environment>

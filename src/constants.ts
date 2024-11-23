@@ -192,3 +192,7 @@ export const CONTEXT_ALLOCATION: ContextAllocation = {
 };
 
 export const WEAK_MODEL_ID = "gpt-4o-mini";
+
+export const INACTIVITY_TIMEOUT = 3 * 60 * 60 * 1000; // 3 hours
+
+export const RECENCY_RANGE = 2 * 24 * 60 * 60 * 1000; // 2 days for now

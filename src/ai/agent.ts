@@ -1,7 +1,7 @@
 import type { ChatMessage } from "llamaindex";
 import { OpenAIAgent } from "llamaindex";
 import { DynamicContextData, gatherContextData } from "../cli/contextUtils";
-import { ContextAllocation, MESSAGE_ROLES, WEAK_MODEL_ID } from "../constants";
+import { ContextAllocation, INACTIVITY_TIMEOUT, MESSAGE_ROLES, WEAK_MODEL_ID } from "../constants";
 import { getCorrectness, getFaithfulness, getRelevancy } from "../features/userScore/evaluations/evaluations";
 import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationScore";
 import { askUserCallback, UserCliResponse } from "../tools/askUser";
@@ -9,9 +9,10 @@ import { createExecuteCommandTool } from "../tools/executeCommand";
 import { AppConfig, loadConfig } from "../utils/config";
 import { countUsageCost } from "../utils/countUsageCost";
 import {
-  insertConversation as createConversation,
   Database,
   getAllConversationData,
+  getLastConversationEntry,
+  insertConversation,
   insertMessage,
   updateConversationFields,
 } from "../utils/database";
@@ -22,9 +23,41 @@ import { logger, LogLevel, LogLevelType } from "../utils/logger";
 import { parseLLMResponse } from "../utils/parseLLMResponse";
 import { initializeRun } from "../utils/runManager";
 import { buildConstantSystemMessage, bulidVariableSystemMessage } from "./buildSystemMessage";
-import { constructChatHistory, getMemories, saveConversationDocument } from "./chatHistory";
+import { constructChatHistory } from "./chatHistory";
 import { getAiAgent } from "./getAiAgent";
+import { saveConversationDocument } from "./memories/memories";
 import { parseAgentMessage, ParsedAgentMessage } from "./parseAgentResponseContent";
+
+export async function getConversationId(db: Database, userQuery: string): Promise<number> {
+  logger.debug("Fetching last interaction record from the database.");
+  const lastInteractionRecord = getLastConversationEntry(db);
+  logger.debug(`Last interaction record: ${JSON.stringify(lastInteractionRecord)}`);
+
+  let conversationId: number;
+
+  if (!lastInteractionRecord?.conversationId) {
+    logger.debug("No previous interaction found. Creating a new conversation entry.");
+    conversationId = await insertConversation(db, userQuery, Date.now());
+    logger.debug(`New conversation ID created: ${conversationId}`);
+    return conversationId;
+  }
+
+  const timeSinceLastInteraction = Date.now() - lastInteractionRecord.timestamp;
+  logger.debug(`Time since last interaction: ${timeSinceLastInteraction}ms`);
+
+  if (timeSinceLastInteraction < INACTIVITY_TIMEOUT) {
+    logger.debug("Continuing existing conversation.");
+    conversationId = lastInteractionRecord.conversationId;
+    logger.debug(`Existing conversation ID: ${conversationId}`);
+  } else {
+    logger.debug("Inactivity timeout exceeded. Creating a new conversation entry.");
+    conversationId = await insertConversation(db, userQuery, Date.now());
+    logger.debug(`New conversation ID created: ${conversationId}`);
+  }
+
+  logger.debug(`Returning conversation ID: ${conversationId}`);
+  return conversationId;
+}
 
 export async function agentLoop(
   consoleInput: string,
@@ -62,8 +95,12 @@ export async function agentLoop(
       continue;
     }
 
-    const conversationId = await createConversation(db, userQuery, startTime);
-
+    const conversationId = await getConversationId(db, userQuery);
+    logger.debug(`Conversation ID: ${conversationId}`);
+    logger.debug(`Conversation ID raw: ${JSON.stringify(conversationId)}`);
+    if (!conversationId) {
+      throw new Error("Conversation ID is not a number");
+    }
     // cycle throught question-answer message pairs in the conversation
     do {
       logger.debug("Running agent with user query");
@@ -109,7 +146,6 @@ export async function agentLoop(
       agentMessage = null;
     }
   }
-  logger.debug("highest cycle end");
 }
 
 export async function runAgent(
@@ -215,8 +251,9 @@ async function prepareMessages(
   contextAllocation: ContextAllocation,
 ): Promise<ChatMessage[]> {
   logger.debug("Building system message");
-  const memories = await getMemories(userQuery);
-  logger.debug(`momorues added. ${memories.length} items. ${memories.slice(0, 300)}`);
+
+  // memeories must be added here when stage 1 is ready
+  // const memories = await getMemories(userQuery);
 
   const chatHistory = await constructChatHistory(db, conversationId, contextAllocation.chatHistory);
   const messages: ChatMessage[] = [
@@ -231,7 +268,7 @@ async function prepareMessages(
     },
     {
       role: "system",
-      content: bulidVariableSystemMessage(runDir, contextData, config, userQuery, memories),
+      content: bulidVariableSystemMessage(runDir, contextData, config, userQuery),
     },
     ...chatHistory,
   ];

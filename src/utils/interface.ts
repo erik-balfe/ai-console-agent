@@ -5,6 +5,7 @@ export interface AgentMessage {
   content: string;
   timestamp: number;
   duration?: number;
+  conversationId: number;
 }
 
 export interface ToolCall {
@@ -14,6 +15,7 @@ export interface ToolCall {
   output: string;
   timestamp: number;
   executionTime: number;
+  conversationId: number;
 }
 
 export type ModelShortName = keyof typeof AVAILABLE_MODELS;
