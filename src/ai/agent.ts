@@ -6,6 +6,7 @@ import { getCorrectness, getFaithfulness, getRelevancy } from "../features/userS
 import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationScore";
 import { askUserCallback, UserCliResponse } from "../tools/askUser";
 import { createExecuteCommandTool } from "../tools/executeCommand";
+import { createWaitTool } from "../tools/wait";
 import { AppConfig, loadConfig } from "../utils/config";
 import { countUsageCost } from "../utils/countUsageCost";
 import {
@@ -27,16 +28,19 @@ import { constructChatHistory } from "./chatHistory";
 import { getAiAgent } from "./getAiAgent";
 import { saveConversationDocument } from "./memories/memories";
 import { parseAgentMessage, ParsedAgentMessage } from "./parseAgentResponseContent";
-import { createWaitTool } from "../tools/wait";
 
-export async function getConversationId(db: Database, userQuery: string): Promise<number> {
+export async function getConversationId(
+  db: Database,
+  userQuery: string,
+  newConversation: boolean,
+): Promise<number> {
   logger.debug("Fetching last interaction record from the database.");
   const lastInteractionRecord = getLastConversationEntry(db);
   logger.debug(`Last interaction record: ${JSON.stringify(lastInteractionRecord)}`);
 
   let conversationId: number;
 
-  if (!lastInteractionRecord?.conversationId) {
+  if (newConversation || !lastInteractionRecord?.conversationId) {
     logger.debug("No previous interaction found. Creating a new conversation entry.");
     conversationId = await insertConversation(db, userQuery, Date.now());
     logger.debug(`New conversation ID created: ${conversationId}`);
@@ -65,6 +69,7 @@ export async function agentLoop(
   db: Database,
   appConfig: AppConfig,
   contextAllocation: ContextAllocation,
+  newConversation: boolean,
 ) {
   let questionForUser: string = "What you your task or question to Ai-console-agent?:";
   let userQuery = consoleInput;
@@ -96,7 +101,7 @@ export async function agentLoop(
       continue;
     }
 
-    const conversationId = await getConversationId(db, userQuery);
+    const conversationId = await getConversationId(db, userQuery, newConversation);
     logger.debug(`Conversation ID: ${conversationId}`);
     logger.debug(`Conversation ID raw: ${JSON.stringify(conversationId)}`);
     if (!conversationId) {
@@ -134,7 +139,7 @@ export async function agentLoop(
         userQuery = userMessage.answer;
       }
       if (userMessage.cancelled) {
-        console.log("Saving conversation data and exiting");
+        console.log("Saving conversation data");
       }
     } while (!agentMessage?.taskComplete && !userMessage?.cancelled && !userMessage.exitProgram);
 

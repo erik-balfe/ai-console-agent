@@ -18,7 +18,7 @@ async function main() {
   let db;
 
   try {
-    const { input, resetKey, showHelp, setLogLevel, getLogLevel, model, showKeys } = parseArguments(Bun.argv);
+    const { input, resetKey, showHelp, setLogLevel, getLogLevel, model, showAPIKeys, newConversation } = parseArguments(Bun.argv);
 
     const { appConfig, userPrefs } = loadConfig();
 
@@ -55,7 +55,7 @@ async function main() {
 
     logger.setLevel(appConfig.logLevel);
 
-    if (showKeys) {
+    if (showAPIKeys) {
       const keys = await getAllStoredKeys();
       console.log(chalk.cyan("\nStored API Keys:"));
       for (const [provider, key] of Object.entries(keys)) {
@@ -94,7 +94,7 @@ async function main() {
       logger.debug("Starting user interaction loop");
       let userQuery = input;
       logger.debug(`Initial user query: ${userQuery}`);
-      await agentLoop(userQuery, db, appConfig, contextAllocation);
+      await agentLoop(userQuery, db, appConfig, contextAllocation, newConversation);
     } catch (error) {
       if (error instanceof APIError) {
         if (error.status === 401) {

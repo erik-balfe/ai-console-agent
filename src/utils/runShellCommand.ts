@@ -63,7 +63,17 @@ export async function runShellCommand(
         stdout: stdout.toString().trim(),
         stderr: stderr.toString().trim(),
       };
-    } catch (error) {}
+    } catch (error) {
+      return {
+        stdout: "",
+        stderr: error.stderr?.toString().trim() || "",
+        error: {
+          code: error.code || 1,
+          message: error.message || "Unknown error occurred",
+          signal: error.signal,
+        },
+      };
+    }
   }
 
   const timestamp = Date.now();

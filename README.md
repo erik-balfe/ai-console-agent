@@ -230,4 +230,4 @@ If you encounter any problems or have any questions, please open an issue on the
 
 ## Version
 
-Current version: 0.2.9
+Current version: 0.2.12

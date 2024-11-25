@@ -1,4 +1,6 @@
 import { DynamicContextData } from "../cli/contextUtils";
+import { CONFIG_DIR_PATH } from "../constants";
+import { ConfigWithMetadata } from "../utils/config";
 import { AsyncCommandTracker } from "./asyncCommandTracker";
 
 export const buildConstantSystemMessage = () =>
@@ -44,7 +46,8 @@ Usage Strategy:
 - Use Scratch Space as a clipboard for any text that might be needed later
 
 Command Handling and Monitoring:
-- **Async Command Execution**: When executing long-running commands, use async mode to run commands without blocking. The command's output will be written to files, allowing for monitoring.
+- **Async Command Execution**: When executing long-running commands, use async mode to run commands that may take a while without blocking. The command's output will be written to files, allowing for monitoring.
+- All usual commands that expected to complete in a few moments should be executed in sync mode.
 - **Command Status Tracking**: Track the state of currently running async commands. You will be notified of their status changes, including success or failure.
 - **Wait Tool**: Use the wait tool to pause execution for a specified time. It can also track the state of running async commands, allowing you to be informed if a command fails before your wait period ends.
 - While working with async commands, consider checking their status regularly. You can utilize tail, grep, and wait tools to monitor the progress effectively.
@@ -72,6 +75,7 @@ Evaluation Process:
 User Profile Management:
 - Update user preferences based on interactions.
 - Regularly assess and record user traits for effective future engagements.
+- User profile (user config) is a file with user prefecences placed in ai-console-agent settings directory in ${CONFIG_DIR_PATH}
 
 Task Approach:
 1. Assess the clarity of tasks (1-10 scale). If the score is < 7, gather more information.
@@ -127,7 +131,7 @@ Memories are presented here in some special format as XML tags with some metadat
 export function bulidVariableSystemMessage(
   runDir: string,
   { pwdOutput, lsOutput, time }: DynamicContextData,
-  config: object,
+  config: ConfigWithMetadata,
   userQuery: string,
 ) {
   const tracker = AsyncCommandTracker.getInstance();
@@ -155,8 +159,8 @@ Here's an overview of your operating environment:
 - Current directory: "${pwdOutput}"
 - Current sharp time: ${time}
 - Current directory contents: "${lsOutput}"
-- Current Configs:
-${JSON.stringify(config, null, 2)}
+- Current user config (user prefecences):
+${config.rawConfigs.user}
 ${commandStatus}
 </environment>
 `.trim();

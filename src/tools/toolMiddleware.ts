@@ -14,7 +14,7 @@ export function createToolMiddleware(db: Database, conversationId: number) {
       let executionTime = 0;
 
       try {
-        logger.debug(
+        logger.warn(
           `Starting tool: "${toolName}", ID: "${toolCallId}" with arguments: "${JSON.stringify(params)}"`,
         );
         result = await toolFunction(params);
