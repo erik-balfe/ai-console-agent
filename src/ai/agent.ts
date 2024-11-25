@@ -27,6 +27,7 @@ import { constructChatHistory } from "./chatHistory";
 import { getAiAgent } from "./getAiAgent";
 import { saveConversationDocument } from "./memories/memories";
 import { parseAgentMessage, ParsedAgentMessage } from "./parseAgentResponseContent";
+import { createWaitTool } from "../tools/wait";
 
 export async function getConversationId(db: Database, userQuery: string): Promise<number> {
   logger.debug("Fetching last interaction record from the database.");
@@ -184,6 +185,7 @@ export async function runAgent(
     </user_query>`;
   logger.debug("Creating conversation in DB");
   const executeCommandTool = createExecuteCommandTool(db, conversationId);
+  const waitTool = createWaitTool(db, conversationId);
   logger.debug("Initializing OpenAI agent");
   const agent = getAiAgent({
     apiKey,

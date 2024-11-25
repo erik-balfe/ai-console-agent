@@ -1,4 +1,5 @@
 import { DynamicContextData } from "../cli/contextUtils";
+import { AsyncCommandTracker } from "./asyncCommandTracker";
 
 export const buildConstantSystemMessage = () =>
   `
@@ -42,6 +43,11 @@ Usage Strategy:
 - Don't try to memorize specific content - store it in Scratch Space instead
 - Use Scratch Space as a clipboard for any text that might be needed later
 
+Command Handling and Monitoring:
+- **Async Command Execution**: When executing long-running commands, use async mode to run commands without blocking. The command's output will be written to files, allowing for monitoring.
+- **Command Status Tracking**: Track the state of currently running async commands. You will be notified of their status changes, including success or failure.
+- **Wait Tool**: Use the wait tool to pause execution for a specified time. It can also track the state of running async commands, allowing you to be informed if a command fails before your wait period ends.
+- While working with async commands, consider checking their status regularly. You can utilize tail, grep, and wait tools to monitor the progress effectively.
 
 Key Principles:
 1. Proactively gather information using non-modifying commands.
@@ -123,8 +129,24 @@ export function bulidVariableSystemMessage(
   { pwdOutput, lsOutput, time }: DynamicContextData,
   config: object,
   userQuery: string,
-  // chatHistory: string,
 ) {
+  const tracker = AsyncCommandTracker.getInstance();
+  const activeCommands = tracker.getActiveCommands();
+
+  const commandStatus =
+    activeCommands.length > 0
+      ? `<async_commands_status>
+    ${activeCommands
+      .map(
+        (cmd) => `- Command: ${cmd.command}
+      Status: ${cmd.status}
+      Running for: ${Math.round((Date.now() - cmd.startTime) / 1000)}s
+      ${cmd.error ? `Error: ${cmd.error.message}` : ""}`,
+      )
+      .join("\n")}
+    </async_commands_status>`
+      : "";
+
   return `
 Here's an overview of your operating environment:
 
@@ -134,9 +156,10 @@ Here's an overview of your operating environment:
 - Current sharp time: ${time}
 - Current directory contents: "${lsOutput}"
 - Current Configs:
-${JSON.stringify(config, null, 2)}}
+${JSON.stringify(config, null, 2)}
+${commandStatus}
 </environment>
-  `.trim();
+`.trim();
 }
 
 // User Interaction Guidelines:

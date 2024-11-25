@@ -36,15 +36,6 @@ export async function initializeDatabase(): Promise<Database> {
   try {
     const db = new Database(DB_PATH, { create: true });
 
-    const currentVersion = db.query("SELECT version FROM db_version").get() as
-      | { version: number }
-      | undefined;
-    if (currentVersion) {
-      logger.debug(`Database version found: ${currentVersion.version}`);
-    } else {
-      logger.debug("No database version found");
-    }
-
     db.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,18 +74,17 @@ export async function initializeDatabase(): Promise<Database> {
       duration INTEGER NOT NULL,
       FOREIGN KEY (conversationId) REFERENCES conversations (id)
     );
+
+    CREATE TABLE IF NOT EXISTS db_version (
+      version INTEGER PRIMARY KEY
+    );
     `);
 
-    const versionTableExists = db
-      .query("SELECT name FROM sqlite_master WHERE type='table' AND name='db_version';")
-      .get();
+    const currentVersion = db.query("SELECT version FROM db_version").get() as
+      | { version: number }
+      | undefined;
 
-    if (!versionTableExists) {
-      db.exec(`
-        CREATE TABLE db_version (
-          version INTEGER PRIMARY KEY
-        );
-      `);
+    if (!currentVersion) {
       db.run("INSERT INTO db_version (version) VALUES (?);", [LATEST_DB_VERSION]);
       logger.debug(`Database version set to ${LATEST_DB_VERSION}`);
     }
@@ -264,12 +254,25 @@ export async function updateConversationFields(
 }
 
 export function printDatabaseContents(db: Database) {
-  const currentVersion = db.query("SELECT version FROM db_version").get() as { version: number } | undefined;
+  let currentVersion;
+
+  try {
+    currentVersion = db.query("SELECT version FROM db_version").get() as { version: number } | undefined;
+  } catch (error) {
+    logger.error(`Failed to get database version: ${error}`);
+  }
 
   if (currentVersion) {
     logger.debug(`Current database version: ${currentVersion.version}`);
   } else {
     logger.debug("No database version found");
+    // create db
+    db.exec(`
+      CREATE TABLE db_version (
+        version INTEGER PRIMARY KEY
+      );
+    `);
+    db.run("INSERT INTO db_version (version) VALUES (?);", [LATEST_DB_VERSION]);
   }
 
   logger.debug("Current database contents:");

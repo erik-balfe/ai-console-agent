@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { FunctionTool } from "llamaindex";
+import path from "path";
 import { displayOptionsAndGetInput } from "../cli/interface";
 import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
 import { Database } from "../utils/database";
@@ -13,21 +14,46 @@ interface ExecuteCommandParams {
     enabled?: boolean;
     description?: string;
   };
+  async?: boolean;
 }
 
-const executeCommandCallback = async (params: ExecuteCommandParams): Promise<string> => {
+interface CommandResponse {
+  stdout?: string;
+  stderr?: string;
+  truncated?: boolean;
+  truncatedDetails?: {
+    lines: number;
+    characters: number;
+  };
+  error?: {
+    code: number;
+    message: string;
+  };
+  // New async-specific fields
+  isAsync?: boolean;
+  outputFiles?: {
+    stdout: string;
+    stderr: string;
+    combined: string;
+  };
+}
+
+export const executeCommandCallback = async (params: ExecuteCommandParams): Promise<string> => {
   const {
     command,
     requireConfirmation: { enabled, description: explanation } = { enabled: false, description: "" },
+    async = false,
   } = params;
 
   if (enabled) {
     if (!explanation) {
       throw new Error("requireConfirmation.description is required when requireConfirmation.enabled is true");
     }
+
     const confirmationQuestion = chalk.blue(
       `\n\n${explanation}.\nDo you want to execute this command:\n\n>${command}\n`,
     );
+
     const userChoice = await displayOptionsAndGetInput(confirmationQuestion, ["Yes", "No"]);
     if (userChoice === "No") {
       return "Command execution cancelled by user.";
@@ -35,36 +61,44 @@ const executeCommandCallback = async (params: ExecuteCommandParams): Promise<str
   }
 
   try {
-    const { stdout, stderr } = await runShellCommand(command, { shell: "bash" });
-    logger.info(`Agent run command:\n$${command}\n`);
+    const result = await runShellCommand(command, {
+      timeout: async ? undefined : 60000, // No timeout for async commands
+      maxBuffer: 1024 * 1024 * 50,
+      async,
+      runDir: process.env.SCRATCH_SPACE || path.join("/tmp", "ai-console-agent"),
+    });
 
-    const output = stderr || stdout;
+    logger.info(`Agent run command${async ? " (async)" : ""}:\n${command}\n`);
 
-    // Use the updated truncateCommandOutput
-    const truncatedResult = truncateCommandOutput(output, CONTEXT_ALLOCATION.toolOutput);
-
-    let resultToReturn: any;
-
-    if (typeof truncatedResult === "string") {
-      // No truncation case
-      resultToReturn = {
-        stdout: truncatedResult,
-        stderr,
+    if (async) {
+      const response: CommandResponse = {
+        isAsync: true,
+        outputFiles: result.outputFiles,
       };
-    } else {
-      // Truncation happened
-      const { output: truncatedOutput, truncatedDetails } = truncatedResult;
-      resultToReturn = {
-        stdout: truncatedOutput,
-        stderr,
-        truncated: true,
-        truncatedDetails,
-      };
+      return JSON.stringify(response);
     }
 
-    logger.debug("truncated output:", resultToReturn.stdout);
-    logger.info(`Agent got command output:\n${resultToReturn.stdout}\n`);
-    return JSON.stringify(resultToReturn);
+    // Handle synchronous execution result
+    if (result.error) {
+      logger.error(`Command failed with code ${result.error.code}: ${result.error.message}`);
+    }
+
+    const truncatedResult = truncateCommandOutput(
+      result.stdout || result.stderr,
+      CONTEXT_ALLOCATION.toolOutput,
+    );
+
+    const response: CommandResponse = {
+      ...result,
+      truncated: typeof truncatedResult !== "string",
+      stdout: typeof truncatedResult === "string" ? truncatedResult : truncatedResult.output,
+      truncatedDetails: typeof truncatedResult !== "string" ? truncatedResult.truncatedDetails : undefined,
+    };
+
+    logger.debug("truncated output:", response.stdout);
+    logger.info(`Agent got command output:\n${response.stdout}\n`);
+
+    return JSON.stringify(response);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return `Failed to execute command: ${errorMessage}`;
@@ -77,13 +111,23 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
   return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
     name: "bash",
     description: `Execute a shell command on the user's host system in a dedicated terminal session. Session is separated from user's current shell session.
-- Interactive commands (e.g. 'git commit' requiring editor) are not supported and must be avoided.
-- Output limited to ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters.
-- Avoid commands producing large output.
-- For large outputs, use filters (grep, head, tail, awk, sed) and use piping to files to reduce size of tool output and use more grained output examining via such intermediate files
-- Use Scratch Space to store intermediate results when processing large data. Break complex pipelines into steps and save interim results for better manageability and debugging.
-- Command parameter does NOT need XML-escaping.
-Returns json object with stdout and stderr strings.
+
+Key Features:
+- Supports both synchronous and asynchronous execution
+- Async mode writes output to separate files for stdout, stderr, and combined output
+- Output limited to ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters for synchronous execution
+- Interactive commands (e.g. 'git commit' requiring editor) are not supported
+
+Usage Guidelines:
+- For long-running commands, use async=true
+- Async commands return file paths for monitoring progress
+- Use tail, grep, etc. to monitor async command output
+- Use Scratch Space for intermediate results
+- Break complex pipelines into steps for better manageability
+
+Returns: JSON object containing:
+- For sync commands: stdout, stderr, and execution details
+- For async commands: output file paths for monitoring
 `,
     parameters: {
       type: "object",
@@ -102,9 +146,14 @@ Returns json object with stdout and stderr strings.
             description: {
               type: "string",
               description:
-                "Description of the comamand, that will be shown to the user before confirmation. Required if requireConfirmation is true.",
+                "Description of the command, shown to user before confirmation. Required if requireConfirmation is true.",
             },
           },
+        },
+        async: {
+          type: "boolean",
+          description:
+            "If true, executes command asynchronously and returns file paths for monitoring progress.",
         },
       },
       required: ["command"],
