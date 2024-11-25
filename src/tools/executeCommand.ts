@@ -110,24 +110,20 @@ export function createExecuteCommandTool(db: Database, conversationId: number) {
 
   return new FunctionTool<ExecuteCommandParams, Promise<string>>(wrappedCallback, {
     name: "bash",
-    description: `Execute a shell command on the user's host system in a dedicated terminal session. Session is separated from user's current shell session.
-
+    description: `Execute shell commands in synchronous or asynchronous mode.
 Key Features:
-- Supports both synchronous and asynchronous execution
-- Async mode writes output to separate files for stdout, stderr, and combined output
-- Output limited to ${CONTEXT_ALLOCATION.toolOutput.maxChars} characters for synchronous execution
-- Interactive commands (e.g. 'git commit' requiring editor) are not supported
-
-Usage Guidelines:
-- For long-running commands, use async=true
-- Async commands return file paths for monitoring progress
-- Use tail, grep, etc. to monitor async command output
-- Use Scratch Space for intermediate results
-- Break complex pipelines into steps for better manageability
-
-Returns: JSON object containing:
-- For sync commands: stdout, stderr, and execution details
-- For async commands: output file paths for monitoring
+1. Sync Mode (default):
+    - Returns direct output
+    - 50MB output limit
+    - Blocks until completion
+    - Timeout: 60 seconds
+2. Async Mode (async: true):
+    - Non-blocking execution
+    - No size/time limits
+    - Returns file paths for monitoring
+Output Handling:
+- Sync: Returns {stdout, stderr, error}
+- Async: Returns {outputFiles: {combined, stdout, stderr}}
 `,
     parameters: {
       type: "object",
@@ -152,6 +148,7 @@ Returns: JSON object containing:
         },
         async: {
           type: "boolean",
+          default: false,
           description:
             "If true, executes command asynchronously and returns file paths for monitoring progress.",
         },

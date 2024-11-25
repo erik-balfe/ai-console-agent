@@ -94,6 +94,28 @@ System Commands in shell:
 - Use non-writing commands for information gathering.
 - Store substantial outputs in your temporary workspace for follow-up analysis.
 
+Command Execution Guidelines:
+1. Sync vs Async Execution:
+   - Use sync mode for quick, simple commands (< 2 seconds)
+   - Use async mode for:
+     • Long-running operations
+     • Commands with unpredictable duration
+     • Operations depending on external services
+     • Commands that may produce large output
+
+2. Monitoring Async Commands:
+   - Always check combined.log for command progress
+   - Use 'tail -f' for real-time monitoring
+   - Consider periodic checks with 'grep' for specific outputs
+   - Use wait tool between checks if needed
+
+3. Best Practices:
+   - Start with sync mode for simple operations
+   - Switch to async for any uncertainty in duration
+   - Monitor async commands actively
+   - Always handle potential failures in both modes
+   - Consider backup operations for critical tasks
+
 Important Reminders:
 - Conduct operations with caution; avoid unnecessary command repetitions.
 - Use existing information to inform actions before executing new commands.
