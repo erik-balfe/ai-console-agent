@@ -1,12 +1,12 @@
 import { execSync } from "child_process";
 import fs from "fs";
 import { APP_CONFIG_FILE_PATH, CONFIG_DIR_PATH, MODELS, USER_PREFS_FILE_PATH } from "../constants";
-import { LogLevel, LogLevelType } from "./logger";
+import { logger, LogLevel, LogLevelType } from "./logger";
 
 export interface AppConfig {
   logLevel: LogLevelType;
   model: string;
-  contextLimitMultiplier: number;
+  contextWindowLimit?: number;
   // ... other app settings,
 }
 
@@ -19,7 +19,7 @@ export interface UserPreferences extends Record<string, any> {
 const DEFAULT_APP_CONFIG: AppConfig = {
   logLevel: LogLevel.WARN,
   model: Object.values(MODELS).find((model) => model.default)?.id || "",
-  contextLimitMultiplier: 1,
+  contextWindowLimit: Infinity,
 };
 
 const DEFAULT_USER_PREFS: UserPreferences = {
@@ -73,6 +73,7 @@ function parseConfigFile(filePath: string): ConfigData {
 
     parsedLines.push(parsedLine);
   }
+  logger.debug("parsed appccofig", parsedLines);
 
   return {
     parsed,
@@ -153,7 +154,7 @@ export function loadConfig(): ConfigWithMetadata {
   let userPrefs: UserPreferences = DEFAULT_USER_PREFS;
   let rawAppConfig = "";
   let rawUserConfig = "";
-
+  logger.debug("appConfig", appConfig);
   try {
     if (fs.existsSync(APP_CONFIG_FILE_PATH)) {
       const appConfigData = parseConfigFile(APP_CONFIG_FILE_PATH);
@@ -161,8 +162,9 @@ export function loadConfig(): ConfigWithMetadata {
       appConfig = {
         ...DEFAULT_APP_CONFIG,
         logLevel:
-          (appConfigData.parsed.logLevel?.toUpperCase() as LogLevelType) || DEFAULT_APP_CONFIG.logLevel,
-        model: appConfigData.parsed.model || DEFAULT_APP_CONFIG.model,
+          (appConfigData.parsed.logLevel?.toUpperCase() as LogLevelType),
+        model: appConfigData.parsed.model,
+        contextWindowLimit: Number(appConfigData.parsed.contextWindowLimit)
       };
     } else {
       // Create default config with comments
@@ -171,8 +173,8 @@ export function loadConfig(): ConfigWithMetadata {
 logLevel=${DEFAULT_APP_CONFIG.logLevel}
 # AI model to use for processing
 model=${DEFAULT_APP_CONFIG.model}
-# Context limit multiplier for token management
-contextLimitMultiplier=${DEFAULT_APP_CONFIG.contextLimitMultiplier}`;
+# Context limit for reducing costs
+contextWindowLimit=${DEFAULT_APP_CONFIG.contextWindowLimit}`;
 
       fs.writeFileSync(APP_CONFIG_FILE_PATH, defaultAppConfigContent);
       rawAppConfig = defaultAppConfigContent;

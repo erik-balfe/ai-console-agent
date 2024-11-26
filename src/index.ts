@@ -20,7 +20,7 @@ async function main() {
   try {
     const { input, resetKey, showHelp, setLogLevel, getLogLevel, model, showAPIKeys, newConversation } = parseArguments(Bun.argv);
 
-    const { appConfig, userPrefs } = loadConfig();
+    const { appConfig } = loadConfig();
 
     if (setLogLevel !== undefined) {
       if (saveConfig({ logLevel: LogLevel[setLogLevel] }, {})) {
@@ -88,7 +88,7 @@ async function main() {
       );
       return;
     }
-    const contextAllocation = getContextAllocation(appConfig.model);
+    const contextAllocation = getContextAllocation(appConfig);
 
     try {
       logger.debug("Starting user interaction loop");
