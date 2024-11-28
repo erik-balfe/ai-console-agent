@@ -1,10 +1,10 @@
 import { execSync } from "child_process";
 import fs from "fs";
 import { APP_CONFIG_FILE_PATH, CONFIG_DIR_PATH, MODELS, USER_PREFS_FILE_PATH } from "../constants";
-import { logger, LogLevel, LogLevelType } from "./logger";
+import { LogLevel, LogLevelType } from "./logger";
 
 export interface AppConfig {
-  logLevel: LogLevelType;
+  logging: LoggingConfig;
   model: string;
   contextWindowLimit?: number;
   // ... other app settings,
@@ -16,8 +16,18 @@ export interface UserPreferences extends Record<string, any> {
   // ... other user preferences
 }
 
+export interface LoggingConfig {
+  level: LogLevelType;
+  enabled: boolean;
+  path: string;
+}
+
 const DEFAULT_APP_CONFIG: AppConfig = {
-  logLevel: LogLevel.WARN,
+  logging: {
+    level: LogLevel.WARN,
+    enabled: true,
+    path: `${process.env.HOME}/.ai-console-agent/logs/ai-console-agent.log`,
+  },
   model: Object.values(MODELS).find((model) => model.default)?.id || "",
   contextWindowLimit: Infinity,
 };
@@ -73,7 +83,6 @@ function parseConfigFile(filePath: string): ConfigData {
 
     parsedLines.push(parsedLine);
   }
-  logger.debug("parsed appccofig", parsedLines);
 
   return {
     parsed,
@@ -154,17 +163,15 @@ export function loadConfig(): ConfigWithMetadata {
   let userPrefs: UserPreferences = DEFAULT_USER_PREFS;
   let rawAppConfig = "";
   let rawUserConfig = "";
-  logger.debug("appConfig", appConfig);
   try {
     if (fs.existsSync(APP_CONFIG_FILE_PATH)) {
       const appConfigData = parseConfigFile(APP_CONFIG_FILE_PATH);
       rawAppConfig = appConfigData.raw;
       appConfig = {
         ...DEFAULT_APP_CONFIG,
-        logLevel:
-          (appConfigData.parsed.logLevel?.toUpperCase() as LogLevelType),
+        logLevel: appConfigData.parsed.logLevel?.toUpperCase() as LogLevelType,
         model: appConfigData.parsed.model,
-        contextWindowLimit: Number(appConfigData.parsed.contextWindowLimit)
+        contextWindowLimit: Number(appConfigData.parsed.contextWindowLimit),
       };
     } else {
       // Create default config with comments

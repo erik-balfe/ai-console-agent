@@ -2,7 +2,7 @@ import { exec, spawn, type ExecOptions } from "child_process";
 import fs from "fs";
 import path from "path";
 import { promisify } from "util";
-import { logger } from "./logger";
+import { debug } from "./logger/Logger";
 
 const execAsync = promisify(exec);
 
@@ -49,7 +49,7 @@ export async function runShellCommand(
   options: EnhancedExecOptions = {},
 ): Promise<ShellCommandResult> {
   const finalOptions = { ...DEFAULT_OPTIONS, ...options };
-  logger.debug("command in runShellCommand", command);
+  debug("command in runShellCommand", command);
 
   if (!finalOptions.async) {
     try {
@@ -57,7 +57,7 @@ export async function runShellCommand(
         set -euo pipefail
         ${command}
       `;
-      logger.debug(`Executing command: ${wrappedCommand}`);
+      debug(`Executing command: ${wrappedCommand}`);
       const { stdout, stderr } = await execAsync(wrappedCommand, finalOptions);
       return {
         stdout: stdout.toString().trim(),

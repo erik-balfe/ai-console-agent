@@ -1,6 +1,6 @@
 import { MODELS } from "../constants";
 import { AppConfig } from "./config";
-import { logger } from "./logger";
+import { debug } from "./logger";
 
 export function getContextAllocation(appConfig: AppConfig) {
   const modelId = appConfig.model;
@@ -11,7 +11,7 @@ export function getContextAllocation(appConfig: AppConfig) {
     throw new Error(`Model ${modelId} not found in MODELS`);
   }
 
-  logger.debug("Context Allocation Input Parameters:", {
+  debug("Context Allocation Input Parameters:", {
     modelId,
     contextWindowLimit: contextWindowLimit || "Not specified",
     modelMaxContextSize: modelConfig.maxContextSize,
@@ -21,7 +21,7 @@ export function getContextAllocation(appConfig: AppConfig) {
   const modelMaxTokens = modelConfig.maxContextSize;
   const effectiveTokens = contextWindowLimit ? Math.min(contextWindowLimit, modelMaxTokens) : modelMaxTokens;
 
-  logger.debug("Effective Token Calculation:", {
+  debug("Effective Token Calculation:", {
     modelMaxTokens,
     requestedLimit: contextWindowLimit,
     effectiveTokens,
@@ -35,7 +35,7 @@ export function getContextAllocation(appConfig: AppConfig) {
   const staticSystemTokens = Math.min(2000, Math.floor(0.1 * effectiveTokens));
   const dynamicSystemTokens = Math.min(500, Math.floor(0.05 * effectiveTokens));
 
-  logger.debug("Token Distribution:", {
+  debug("Token Distribution:", {
     memories: `${memoryTokens} (15%)`,
     chatHistory: `${chatHistoryTokens} (30%)`,
     toolOutput: `${toolOutputTokens} (10%)`,
@@ -74,7 +74,7 @@ export function getContextAllocation(appConfig: AppConfig) {
     },
   };
 
-  logger.debug("Final Context Allocation:", {
+  debug("Final Context Allocation:", {
     memories: {
       tokens: contextAllocation.memories.maxTokens,
       chars: contextAllocation.memories.maxChars,

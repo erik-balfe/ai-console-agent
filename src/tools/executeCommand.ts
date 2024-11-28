@@ -4,7 +4,7 @@ import path from "path";
 import { displayOptionsAndGetInput } from "../cli/interface";
 import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
 import { Database } from "../utils/database";
-import { logger } from "../utils/logger";
+import { debug, error, info } from "../utils/logger/Logger";
 import { runShellCommand } from "../utils/runShellCommand";
 import { createToolMiddleware } from "./toolMiddleware";
 
@@ -68,7 +68,7 @@ export const executeCommandCallback = async (params: ExecuteCommandParams): Prom
       runDir: process.env.SCRATCH_SPACE || path.join("/tmp", "ai-console-agent"),
     });
 
-    logger.info(`Agent run command${async ? " (async)" : ""}:\n${command}\n`);
+    info(`Agent run command${async ? " (async)" : ""}:\n${command}\n`);
 
     if (async) {
       const response: CommandResponse = {
@@ -80,7 +80,7 @@ export const executeCommandCallback = async (params: ExecuteCommandParams): Prom
 
     // Handle synchronous execution result
     if (result.error) {
-      logger.error(`Command failed with code ${result.error.code}: ${result.error.message}`);
+      error(`Command failed with code ${result.error.code}: ${result.error.message}`);
     }
 
     const truncatedResult = truncateCommandOutput(
@@ -95,8 +95,8 @@ export const executeCommandCallback = async (params: ExecuteCommandParams): Prom
       truncatedDetails: typeof truncatedResult !== "string" ? truncatedResult.truncatedDetails : undefined,
     };
 
-    logger.debug("truncated output:", response.stdout);
-    logger.info(`Agent got command output:\n${response.stdout}\n`);
+    debug("truncated output:", response.stdout);
+    info(`Agent got command output:\n${response.stdout}\n`);
 
     return JSON.stringify(response);
   } catch (error: unknown) {

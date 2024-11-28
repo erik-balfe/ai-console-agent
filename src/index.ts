@@ -6,11 +6,11 @@ import { formatApiKey, getAllStoredKeys } from "./cli/getAllKeys";
 import { parseArguments, printHelp } from "./cli/interface";
 import { EMBEDDINGS_MODEL_ID, MAX_INPUT_LENGTH } from "./constants";
 import { deleteAPIKey } from "./utils/apiKeyManager";
-import { loadConfig, saveConfig } from "./utils/config";
+import { loadConfig } from "./utils/config";
 import { initializeDatabase } from "./utils/database";
 import { getContextAllocation } from "./utils/getContextAllocation";
 import { getOrPromptForAPIKey, getProviderFromModel } from "./utils/getOrPromptForAPIKey";
-import { logger, LogLevel } from "./utils/logger";
+import { debug, info, Logger } from "./utils/logger/Logger";
 
 config();
 
@@ -18,32 +18,35 @@ async function main() {
   let db;
 
   try {
-    const { input, resetKey, showHelp, setLogLevel, getLogLevel, model, showAPIKeys, newConversation } = parseArguments(Bun.argv);
+    const parsedArgs = parseArguments(Bun.argv);
+    let { appConfig: configFromFile } = loadConfig();
+    const { input, resetKey, showHelp, showAPIKeys, newConversation } = parsedArgs;
 
-    const { appConfig } = loadConfig();
-
-    if (setLogLevel !== undefined) {
-      if (saveConfig({ logLevel: LogLevel[setLogLevel] }, {})) {
-        console.log(chalk.green(`Log level has been set to ${setLogLevel}`));
-      } else {
-        console.log(chalk.red("Failed to set log level. Please try again."));
-        process.exit(1);
-      }
+    const appConfig = { ...configFromFile, ...parsedArgs };
+    // Override config with command line arguments
+    if (parsedArgs.logLevel) {
+      appConfig.logging.level = parsedArgs.logLevel;
+    }
+    if (parsedArgs.logToFile !== undefined) {
+      appConfig.logging.enabled = parsedArgs.logToFile;
+    }
+    if (parsedArgs.logPath) {
+      appConfig.logging.path = parsedArgs.logPath;
     }
 
-    if (getLogLevel) {
-      console.log(chalk.blue(`Current log level: ${LogLevel[appConfig.logLevel]}`));
-      return;
-    }
+    await Logger.initialize({
+      level: appConfig.logging.level,
+      fileOutput: appConfig.logging.enabled
+        ? {
+            enabled: true,
+            path: appConfig.logging.path,
+          }
+        : undefined,
+    });
 
     if (showHelp) {
       printHelp();
       return;
-    }
-
-    // maybe needs persisting
-    if (model) {
-      appConfig.model = model;
     }
 
     await getOrPromptForAPIKey(EMBEDDINGS_MODEL_ID, {
@@ -51,9 +54,7 @@ async function main() {
         "Please enter your OpenAI API key. It is used for embeddings and will consume small amount of tokens",
     });
 
-    logger.info(`running using model "${appConfig.model}"`);
-
-    logger.setLevel(appConfig.logLevel);
+    info(`running using model "${appConfig.model}"`);
 
     if (showAPIKeys) {
       const keys = await getAllStoredKeys();
@@ -78,9 +79,7 @@ async function main() {
     db = await initializeDatabase();
     const apiKey = await getOrPromptForAPIKey(appConfig.model);
 
-    logger.debug(
-      chalk.cyan("API key:", apiKey.substring(0, 5) + "..." + apiKey.substring(apiKey.length - 5)),
-    );
+    debug(chalk.cyan("API key:", apiKey.substring(0, 5) + "..." + apiKey.substring(apiKey.length - 5)));
 
     if (input.length > MAX_INPUT_LENGTH) {
       console.error(
@@ -91,9 +90,9 @@ async function main() {
     const contextAllocation = getContextAllocation(appConfig);
 
     try {
-      logger.debug("Starting user interaction loop");
+      debug("Starting user interaction loop");
       let userQuery = input;
-      logger.debug(`Initial user query: ${userQuery}`);
+      debug(`Initial user query: ${userQuery}`);
       await agentLoop(userQuery, db, appConfig, contextAllocation, newConversation);
     } catch (error) {
       if (error instanceof APIError) {

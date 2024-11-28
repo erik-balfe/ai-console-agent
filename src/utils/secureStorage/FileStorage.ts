@@ -3,7 +3,6 @@ import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { getUserHomeDir } from "../getUserHomeDir";
-import { logger } from "../logger";
 import { SecureStorage } from "./interface";
 
 export class FileStorage implements SecureStorage {

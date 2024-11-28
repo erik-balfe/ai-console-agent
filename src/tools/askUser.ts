@@ -1,5 +1,5 @@
 import { displayOptionsAndGetInput } from "../cli/interface";
-import { logger } from "../utils/logger";
+import { debug, error } from "../utils/logger/Logger";
 
 interface AskUserParams {
   question: string;
@@ -17,18 +17,18 @@ export interface UserCliResponse {
 export async function askUserCallback(
   params: AskUserParams,
 ): Promise<{ answer: string; duration: number; cancelled?: boolean; exitProgram?: boolean }> {
-  logger.debug("Starting userInteractionTool");
+  debug("Starting userInteractionTool");
   const startTime = Date.now();
   let duration = 0;
   const { question, options = [] } = params;
 
   // logger.userInteraction(`Question: ${question}`);
-  // logger.debug(`Options: ${options.join(", ")}`);
+  // debug(`Options: ${options.join(", ")}`);
 
   try {
     const result = await displayOptionsAndGetInput(question, options);
     duration = Date.now() - startTime;
-    logger.debug(`User response: ${result}, duration: ${duration}ms`);
+    debug(`User response: ${result}, duration: ${duration}ms`);
     if (result === "<input_aborted_by_user />") {
       return { cancelled: true, duration, answer: result };
     }
@@ -36,9 +36,9 @@ export async function askUserCallback(
       return { exitProgram: true, duration, answer: result };
     }
     return { answer: result, duration };
-  } catch (error) {
-    logger.error("Unknown error during user interaction");
-    throw error;
+  } catch (err) {
+    error("Unknown error during user interaction");
+    throw err;
   }
 }
 

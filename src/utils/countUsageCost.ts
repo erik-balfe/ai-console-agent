@@ -1,5 +1,5 @@
 import { MODELS } from "../constants";
-import { logger } from "./logger";
+import { debug } from "./logger/Logger";
 
 export interface UsageCostResult {
   costUSD: number;
@@ -17,7 +17,7 @@ export interface UsageCostResult {
 export function countUsageCost(usage: Record<string, unknown>, model: string): UsageCostResult {
   const modelConfig = MODELS[model] ?? MODELS["gpt-4o-mini"];
 
-  logger.debug("ugase from llamaindex:", JSON.stringify(usage));
+  debug("ugase from llamaindex:", JSON.stringify(usage));
   const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
   const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
   const cachedTokens = usage.prompt_tokens_details?.cached_tokens || 0;
@@ -32,10 +32,10 @@ export function countUsageCost(usage: Record<string, unknown>, model: string): U
   const outputCost = outputTokens * modelConfig.price.output;
   const totalCost = inputCost - cachedInputCost + outputCost;
 
-  logger.debug(`Input Cost: ${inputCost.toFixed(6)} USD`);
-  logger.debug(`Cached Input Cost: ${cachedInputCost.toFixed(6)} USD`);
-  logger.debug(`Output Cost: ${outputCost.toFixed(6)} USD`);
-  logger.debug(`Total Cost: ${totalCost.toFixed(6)} USD`);
+  debug(`Input Cost: ${inputCost.toFixed(6)} USD`);
+  debug(`Cached Input Cost: ${cachedInputCost.toFixed(6)} USD`);
+  debug(`Output Cost: ${outputCost.toFixed(6)} USD`);
+  debug(`Total Cost: ${totalCost.toFixed(6)} USD`);
 
   return {
     costUSD: totalCost,

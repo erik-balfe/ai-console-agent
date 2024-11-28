@@ -8,7 +8,9 @@
   "type": "module",
   "scripts": {
     "build": "bun run build.ts",
-    "test": "bun test "
+    "test": "bun test ",
+    "dev": "bun run ./src/index.ts --log-to-file",
+    "install-global": "./build-and-install.sh"
   },
   "devDependencies": {
     "@types/bun": "latest",

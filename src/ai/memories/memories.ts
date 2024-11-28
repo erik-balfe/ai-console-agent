@@ -1,8 +1,8 @@
 import { MetadataMode, VectorStoreIndex } from "llamaindex";
 import { ConversationMetadata, Database, getAllConversationData } from "../../utils/database";
-import { logger } from "../../utils/logger";
 import { strigifyFullConversation } from "../../utils/strigifyFullConversation";
 import { addConversationDocument, initializeVectorStoreIndex } from "./vectorStore";
+import { debug } from "../../utils/logger/Logger";
 
 export async function saveConversationDocument(db: Database, conversationId: number): Promise<void> {
   const document = await createDocumentFromConversation(db, conversationId);
@@ -16,9 +16,9 @@ async function createDocumentFromConversation(
   const { messages, toolCalls, conversationData } = getAllConversationData(db, conversationId);
   const stringifiedConversation = strigifyFullConversation(messages, toolCalls, conversationData);
 
-  logger.debug("all conversation messages:\n\n", JSON.stringify(messages, null, 2));
-  logger.debug("all conversation tool Calls:\n\n", JSON.stringify(toolCalls, null, 2));
-  logger.debug("all conversation Data:\n\n", JSON.stringify(conversationData, null, 2));
+  debug("all conversation messages:\n\n", JSON.stringify(messages, null, 2));
+  debug("all conversation tool Calls:\n\n", JSON.stringify(toolCalls, null, 2));
+  debug("all conversation Data:\n\n", JSON.stringify(conversationData, null, 2));
 
   const metadata = {
     conversationId,
@@ -55,40 +55,40 @@ export async function getRelevantContext(
 ): Promise<string[]> {
   // todo: increase 'retrievalCount' and 'lastRetrieved' on each item that is passed to the agent
   // todo: adjust similarityTopK according to quota for memery.
-  logger.debug("Starting retrieval process with query:", query);
+  debug("Starting retrieval process with query:", query);
   try {
     const topK = 2;
     const retriever = vectorStoreIndex.asRetriever({ similarityTopK: topK });
-    logger.debug("Initialized retriever with similarityTopK:", topK);
+    debug("Initialized retriever with similarityTopK:", topK);
 
     const nodes = await retriever.retrieve(query);
-    logger.debug(`Retrieved ${nodes.length} relevant nodes from the vector store.`);
+    debug(`Retrieved ${nodes.length} relevant nodes from the vector store.`);
 
     if (nodes.length > 0) {
-      // logger.debug(`Node details:\n`, JSON.stringify(nodes, null, 2));
+      // debug(`Node details:\n`, JSON.stringify(nodes, null, 2));
     } else {
-      logger.debug("No nodes retrieved for the given query.");
+      debug("No nodes retrieved for the given query.");
     }
 
     const relevantNodes = nodes.map((node) => node.node.getContent(MetadataMode.ALL));
-    logger.debug("memories size:", relevantNodes.length, "items,");
+    debug("memories size:", relevantNodes.length, "items,");
 
     return relevantNodes;
-  } catch (error) {
-    logger.error("Error retrieving documents from vector store:", error);
+  } catch (err) {
+    err("Error retrieving documents from vector store:", err);
     return [];
   }
 }
 
 export async function getMemories(input: string): Promise<string> {
   const vectorStoreIndex = await initializeVectorStoreIndex();
-  logger.debug("Initialized vectorStoreIndex for memory system message.");
+  debug("Initialized vectorStoreIndex for memory system message.");
 
   const relevantContext = await getRelevantContext(vectorStoreIndex, input);
-  logger.debug(`Relevant context returned: ${relevantContext.length} items.`);
+  debug(`Relevant context returned: ${relevantContext.length} items.`);
 
   if (!relevantContext.length) {
-    logger.debug("No relevant context found for the current query");
+    debug("No relevant context found for the current query");
   }
 
   // todo: implement

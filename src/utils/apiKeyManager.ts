@@ -1,7 +1,7 @@
 import { Entry } from "@napi-rs/keyring";
 import { APIProvider } from "../constants";
 import { getProviderFromModel } from "./getOrPromptForAPIKey";
-import { logger } from "./logger";
+import { debug, error } from "./logger/Logger";
 import { FileStorage } from "./secureStorage/FileStorage";
 import { SecureStorage } from "./secureStorage/interface";
 import { KeyringStorage } from "./secureStorage/KeyringStorage";
@@ -13,25 +13,25 @@ class StorageManager {
 
   private async initializeStorage(): Promise<SecureStorage> {
     try {
-      logger.debug("Trying to initialize keyring storage...");
+      debug("Trying to initialize keyring storage...");
       const testEntry = new Entry("test-service", "test-user");
       testEntry.setPassword("test");
       testEntry.deletePassword();
 
-      logger.debug("Keyring storage is available");
+      debug("Keyring storage is available");
       return new KeyringStorage(SERVICE_NAME, "APIKeys");
-    } catch (error) {
+    } catch (err) {
       if (
-        error instanceof Error &&
-        (error.message.includes("Platform secure storage failure") ||
-          error.message.includes("Operation not permitted"))
+        err instanceof Error &&
+        (err.message.includes("Platform secure storage failure") ||
+          err.message.includes("Operation not permitted"))
       ) {
-        logger.debug("Running on a system without keyring support, using file storage");
+        debug("Running on a system without keyring support, using file storage");
         return new FileStorage();
       }
 
-      logger.error("Unexpected error during storage initialization:", error);
-      logger.debug("Falling back to file storage");
+      error("Unexpected error during storage initialization:", err);
+      debug("Falling back to file storage");
       return new FileStorage();
     }
   }
@@ -45,31 +45,31 @@ class StorageManager {
 
   async getAPIKey(provider: APIProvider): Promise<string | null> {
     try {
-      logger.debug(`Attempting to retrieve ${provider} API key`);
+      debug(`Attempting to retrieve ${provider} API key`);
       const storage = await this.getStorage();
       const key = await storage.get(`${provider}APIKey`);
 
       if (key) {
-        logger.debug(`${provider} API key retrieved successfully (first 4 chars: ${key.slice(0, 4)}...)`);
+        debug(`${provider} API key retrieved successfully (first 4 chars: ${key.slice(0, 4)}...)`);
       } else {
-        logger.debug(`No ${provider} API key found`);
+        debug(`No ${provider} API key found`);
       }
 
       return key;
-    } catch (error) {
-      logger.error(`Failed to retrieve ${provider} API key:`, error);
+    } catch (err) {
+      error(`Failed to retrieve ${provider} API key:`, err);
       return null;
     }
   }
 
   async storeAPIKey(apiKey: string, provider: APIProvider): Promise<void> {
     try {
-      logger.debug(`Attempting to store ${provider} API key`);
+      debug(`Attempting to store ${provider} API key`);
       const storage = await this.getStorage();
       await storage.set(`${provider}APIKey`, apiKey);
-      logger.debug(`${provider} API key stored successfully`);
-    } catch (error) {
-      logger.error(`Failed to store ${provider} API key:`, error);
+      debug(`${provider} API key stored successfully`);
+    } catch (err) {
+      error(`Failed to store ${provider} API key:`, err);
       throw new Error(`Failed to securely store the ${provider} API key`);
     }
   }
@@ -77,13 +77,13 @@ class StorageManager {
   async deleteAPIKey(modelId: string): Promise<boolean> {
     try {
       const provider = getProviderFromModel(modelId);
-      logger.debug(`Attempting to delete ${provider} API key`);
+      debug(`Attempting to delete ${provider} API key`);
       const storage = await this.getStorage();
       const result = await storage.delete(`${provider}APIKey`);
-      logger.debug(`${provider} API key deletion ${result ? "successful" : "failed"}`);
+      debug(`${provider} API key deletion ${result ? "successful" : "failed"}`);
       return result;
-    } catch (error) {
-      logger.error(`Failed to delete ${modelId} API key:`, error);
+    } catch (err) {
+      error(`Failed to delete ${modelId} API key:`, error);
       return false;
     }
   }

@@ -5,7 +5,7 @@ import path from "path";
 import { MessageRole, RECENCY_RANGE } from "../constants";
 import { getUserHomeDir } from "./getUserHomeDir";
 import { AgentMessage, ConversationEntry, ToolCall } from "./interface";
-import { logger } from "./logger";
+import { debug, error } from "./logger/Logger";
 
 const DB_PATH = path.join(getUserHomeDir(), ".ai-console-agent", "chat_history.db");
 
@@ -27,9 +27,9 @@ export async function initializeDatabase(): Promise<Database> {
   if (!existsSync(dbDir)) {
     try {
       await mkdir(dbDir, { recursive: true });
-    } catch (error) {
-      logger.error(`Failed to create database directory: ${error}`);
-      throw error;
+    } catch (err) {
+      error(`Failed to create database directory: ${err}`);
+      throw err;
     }
   }
 
@@ -86,16 +86,16 @@ export async function initializeDatabase(): Promise<Database> {
 
     if (!currentVersion) {
       db.run("INSERT INTO db_version (version) VALUES (?);", [LATEST_DB_VERSION]);
-      logger.debug(`Database version set to ${LATEST_DB_VERSION}`);
+      debug(`Database version set to ${LATEST_DB_VERSION}`);
     }
 
     await migrateDatabase(db); // Automatically run migration if needed
 
-    logger.debug(`Database initialized successfully at ${DB_PATH}`);
+    debug(`Database initialized successfully at ${DB_PATH}`);
     return db;
-  } catch (error) {
-    logger.error(`Failed to initialize database: ${error}`);
-    throw error;
+  } catch (err) {
+    error(`Failed to initialize database: ${err}`);
+    throw err;
   }
 }
 
@@ -134,7 +134,7 @@ export async function insertConversation(
   userQuery: string,
   startTime: number,
 ): Promise<number> {
-  logger.debug(`Inserting conversation: ${userQuery}`);
+  debug(`Inserting conversation: ${userQuery}`);
 
   const result = db.run("INSERT INTO conversations (userQuery, timestamp, response) VALUES (?, ?, ?)", [
     userQuery,
@@ -152,7 +152,7 @@ export async function insertMessage(
   duration: number,
   role: string,
 ): Promise<number> {
-  logger.debug(
+  debug(
     `Inserting message: ${stepNumber} for conversation ${conversationId}, execution time: ${duration}ms`,
   );
   const timestamp = Date.now();
@@ -250,7 +250,7 @@ export async function updateConversationFields(
       conversationId,
     ],
   );
-  logger.debug(`Conversation ID: ${conversationId} updated successfully with new fields.`);
+  debug(`Conversation ID: ${conversationId} updated successfully with new fields.`);
 }
 
 export function printDatabaseContents(db: Database) {
@@ -258,14 +258,14 @@ export function printDatabaseContents(db: Database) {
 
   try {
     currentVersion = db.query("SELECT version FROM db_version").get() as { version: number } | undefined;
-  } catch (error) {
-    logger.error(`Failed to get database version: ${error}`);
+  } catch (err) {
+    error(`Failed to get database version: ${err}`);
   }
 
   if (currentVersion) {
-    logger.debug(`Current database version: ${currentVersion.version}`);
+    debug(`Current database version: ${currentVersion.version}`);
   } else {
-    logger.debug("No database version found");
+    debug("No database version found");
     // create db
     db.exec(`
       CREATE TABLE db_version (
@@ -275,11 +275,11 @@ export function printDatabaseContents(db: Database) {
     db.run("INSERT INTO db_version (version) VALUES (?);", [LATEST_DB_VERSION]);
   }
 
-  logger.debug("Current database contents:");
+  debug("Current database contents:");
   const conversations = getAllConversations(db);
-  logger.debug(`Total conversations: ${conversations.length}`);
+  debug(`Total conversations: ${conversations.length}`);
   for (const conv of conversations) {
-    logger.debug(
+    debug(
       `Conversation ID: ${conv.id}, Query: ${conv.userQuery}, Title: ${conv.title}, Timestamp: ${conv.timestamp}`,
     );
   }
@@ -460,9 +460,9 @@ async function migrateDatabase(db: Database): Promise<void> {
       db.run("UPDATE db_version SET version = ?;", [LATEST_DB_VERSION]);
     })();
 
-    logger.debug(`Database migrated to version ${LATEST_DB_VERSION}`);
+    debug(`Database migrated to version ${LATEST_DB_VERSION}`);
   } else {
-    logger.debug(`Database version is current: ${currentVersion}`);
+    debug(`Database version is current: ${currentVersion}`);
   }
 }
 

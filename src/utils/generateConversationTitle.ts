@@ -1,6 +1,6 @@
 import { OpenAI } from "llamaindex";
 import { FullConversationData } from "./database";
-import { logger } from "./logger";
+import { debug, error } from "./logger/Logger";
 
 const prompt =
   `Create a concise title for a series of messages from an AI agent, including the initial user query and the agent's subsequent steps and final response. The title should accurately reflect the main intent of the user's query, the agent's analysis and reasoning throughout the messages, and the ultimate conclusion or result provided by the agent. The title must be a short phrase with no more than 10 words.
@@ -42,8 +42,8 @@ export async function generateConversationTitle(
   fullconversationData: FullConversationData,
   { apiKey, modelName },
 ): Promise<string> {
-  logger.debug("Starting conversation title generation");
-  logger.debug(`Input fullConversationData: ${JSON.stringify(fullconversationData)}`);
+  debug("Starting conversation title generation");
+  debug(`Input fullConversationData: ${JSON.stringify(fullconversationData)}`);
 
   const llm = new OpenAI({ apiKey, model: modelName });
 
@@ -66,13 +66,13 @@ export async function generateConversationTitle(
         ? response.message.content
         : response.message.content[0]?.text;
 
-    logger.debug("Title generated successfully");
-    logger.debug(`Generated Title raw:  ${JSON.stringify(response)}`);
-    logger.debug(`Generated Title:  ${JSON.stringify(answerText)}`);
+    debug("Title generated successfully");
+    debug(`Generated Title raw:  ${JSON.stringify(response)}`);
+    debug(`Generated Title:  ${JSON.stringify(answerText)}`);
 
     return answerText;
-  } catch (error) {
-    logger.error("Error generating conversation title:", error);
-    throw error; // Rethrow error after logging
+  } catch (err) {
+    error("Error generating conversation title:", err);
+    throw err; // Rethrow error after logging
   }
 }

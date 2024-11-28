@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { Database, insertToolUse } from "../utils/database";
-import { logger } from "../utils/logger";
+import { debug, error, warn } from "../utils/logger/Logger";
 
 export function createToolMiddleware(db: Database, conversationId: number) {
   return function wrapTool<T extends Record<string, any>>(
@@ -14,16 +14,14 @@ export function createToolMiddleware(db: Database, conversationId: number) {
       let executionTime = 0;
 
       try {
-        logger.warn(
-          `Starting tool: "${toolName}", ID: "${toolCallId}" with arguments: "${JSON.stringify(params)}"`,
-        );
+        warn(`Starting tool: "${toolName}", ID: "${toolCallId}" with arguments: "${JSON.stringify(params)}"`);
         result = await toolFunction(params);
         executionTime = Date.now() - startTime;
-        logger.debug(`Tool output: ${JSON.stringify(result)}`);
-      } catch (error) {
+        debug(`Tool output: ${JSON.stringify(result)}`);
+      } catch (err) {
         executionTime = Date.now() - startTime;
-        logger.error(`Error executing tool: ${toolName} [${toolCallId}]`, error);
-        throw error;
+        error(`Error executing tool: ${toolName} [${toolCallId}]`, err);
+        throw err;
       } finally {
         await insertToolUse({
           db,

@@ -1,5 +1,5 @@
 import { Entry } from "@napi-rs/keyring";
-import { logger } from "../logger";
+import { debug, error } from "../logger/Logger";
 import { SecureStorage } from "./interface";
 
 export class KeyringStorage implements SecureStorage {
@@ -13,7 +13,7 @@ export class KeyringStorage implements SecureStorage {
 
   private getEntry(key: string): Entry {
     const fullKey = `${this.userName}_${key}`;
-    logger.debug(`Using keyring entry with key: ${fullKey}`);
+    debug(`Using keyring entry with key: ${fullKey}`);
     return new Entry(this.serviceName, fullKey);
   }
 
@@ -21,10 +21,10 @@ export class KeyringStorage implements SecureStorage {
     try {
       const entry = this.getEntry(key);
       const value = entry.getPassword();
-      logger.debug(`Retrieved value for key ${key}`);
+      debug(`Retrieved value for key ${key}`);
       return value;
-    } catch (error) {
-      logger.error(`Keyring get error for key ${key}:`, error);
+    } catch (err) {
+      error(`Keyring get error for key ${key}:`, err);
       return null;
     }
   }
@@ -33,10 +33,10 @@ export class KeyringStorage implements SecureStorage {
     try {
       const entry = this.getEntry(key);
       entry.setPassword(value);
-      logger.debug(`Stored value for key ${key}`);
-    } catch (error) {
-      logger.error(`Keyring set error for key ${key}:`, error);
-      throw error;
+      debug(`Stored value for key ${key}`);
+    } catch (err) {
+      error(`Keyring set error for key ${key}:`, err);
+      throw err;
     }
   }
 
@@ -44,10 +44,10 @@ export class KeyringStorage implements SecureStorage {
     try {
       const entry = this.getEntry(key);
       const result = entry.deletePassword();
-      logger.debug(`Deleted value for key ${key}`);
+      debug(`Deleted value for key ${key}`);
       return result;
-    } catch (error) {
-      logger.error(`Keyring delete error for key ${key}:`, error);
+    } catch (err) {
+      error(`Keyring delete error for key ${key}:`, err);
       return false;
     }
   }

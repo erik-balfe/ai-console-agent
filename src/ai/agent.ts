@@ -7,7 +7,7 @@ import { getUserEvaluationScore } from "../features/userScore/getUserEvaluationS
 import { askUserCallback, UserCliResponse } from "../tools/askUser";
 import { createExecuteCommandTool } from "../tools/executeCommand";
 import { createWaitTool } from "../tools/wait";
-import { AppConfig, loadConfig } from "../utils/config";
+import { AppConfig, ConfigWithMetadata, loadConfig } from "../utils/config";
 import { countUsageCost } from "../utils/countUsageCost";
 import {
   Database,
@@ -20,7 +20,7 @@ import {
 import { formatAgentMessage } from "../utils/formatting";
 import { generateConversationTitle } from "../utils/generateConversationTitle";
 import { getOrPromptForAPIKey } from "../utils/getOrPromptForAPIKey";
-import { logger, LogLevel, LogLevelType } from "../utils/logger";
+import { debug, error, info } from "../utils/logger";
 import { parseLLMResponse } from "../utils/parseLLMResponse";
 import { initializeRun } from "../utils/runManager";
 import { buildConstantSystemMessage, bulidVariableSystemMessage } from "./buildSystemMessage";
@@ -34,33 +34,33 @@ export async function getConversationId(
   userQuery: string,
   newConversation: boolean,
 ): Promise<number> {
-  logger.debug("Fetching last interaction record from the database.");
+  debug("Fetching last interaction record from the database.");
   const lastInteractionRecord = getLastConversationEntry(db);
-  logger.debug(`Last interaction record: ${JSON.stringify(lastInteractionRecord)}`);
+  debug(`Last interaction record: ${JSON.stringify(lastInteractionRecord)}`);
 
   let conversationId: number;
 
   if (newConversation || !lastInteractionRecord?.conversationId) {
-    logger.debug("No previous interaction found. Creating a new conversation entry.");
+    debug("No previous interaction found. Creating a new conversation entry.");
     conversationId = await insertConversation(db, userQuery, Date.now());
-    logger.debug(`New conversation ID created: ${conversationId}`);
+    debug(`New conversation ID created: ${conversationId}`);
     return conversationId;
   }
 
   const timeSinceLastInteraction = Date.now() - lastInteractionRecord.timestamp;
-  logger.debug(`Time since last interaction: ${timeSinceLastInteraction}ms`);
+  debug(`Time since last interaction: ${timeSinceLastInteraction}ms`);
 
   if (timeSinceLastInteraction < INACTIVITY_TIMEOUT) {
-    logger.debug("Continuing existing conversation.");
+    debug("Continuing existing conversation.");
     conversationId = lastInteractionRecord.conversationId;
-    logger.debug(`Existing conversation ID: ${conversationId}`);
+    debug(`Existing conversation ID: ${conversationId}`);
   } else {
-    logger.debug("Inactivity timeout exceeded. Creating a new conversation entry.");
+    debug("Inactivity timeout exceeded. Creating a new conversation entry.");
     conversationId = await insertConversation(db, userQuery, Date.now());
-    logger.debug(`New conversation ID created: ${conversationId}`);
+    debug(`New conversation ID created: ${conversationId}`);
   }
 
-  logger.debug(`Returning conversation ID: ${conversationId}`);
+  debug(`Returning conversation ID: ${conversationId}`);
   return conversationId;
 }
 
@@ -93,45 +93,38 @@ export async function agentLoop(
     }
 
     if (userMessage.exitProgram) {
-      logger.info("User pressed exit program");
+      debug("User pressed exit program");
       break;
     }
     if (userMessage.cancelled) {
-      logger.info("User cancelled the conversation");
+      debug("User cancelled the conversation");
       continue;
     }
 
     const conversationId = await getConversationId(db, userQuery, newConversation);
-    logger.debug(`Conversation ID: ${conversationId}`);
-    logger.debug(`Conversation ID raw: ${JSON.stringify(conversationId)}`);
+    debug(`Conversation ID: ${conversationId}`);
+    debug(`Conversation ID raw: ${JSON.stringify(conversationId)}`);
     if (!conversationId) {
       throw new Error("Conversation ID is not a number");
     }
     // cycle throught question-answer message pairs in the conversation
     do {
-      logger.debug("Running agent with user query");
-      agentMessage = await runAgent(
-        userQuery,
-        db,
-        appConfig.model,
-        appConfig.logLevel,
-        conversationId,
-        contextAllocation,
-      );
+      debug("Running agent with user query");
+      agentMessage = await runAgent(userQuery, db, appConfig.model, conversationId, contextAllocation);
       conversationCost += agentMessage.cost;
-      logger.info(`Agent task response received: ${JSON.stringify(agentMessage)}`);
+      info(`Agent task response received: ${JSON.stringify(agentMessage)}`);
       console.write(formatAgentMessage(agentMessage.responseContent));
       if (agentMessage.parts.taskComplete) {
-        logger.info("agent decided to end the conversation");
+        info("agent decided to end the conversation");
         continue;
       }
 
       // Handle user interaction
       if (agentMessage.parts.questionToUser) {
-        logger.debug("Agent asked a follow-up question");
+        debug("Agent asked a follow-up question");
         userMessage = await askUserCallback(agentMessage.parts.questionToUser);
         userQuery = userMessage.answer;
-        logger.info(`User answered: ${JSON.stringify(userMessage)}`);
+        info(`User answered: ${JSON.stringify(userMessage)}`);
       } else {
         userMessage = await askUserCallback({
           question: "User:",
@@ -143,7 +136,7 @@ export async function agentLoop(
       }
     } while (!agentMessage?.taskComplete && !userMessage?.cancelled && !userMessage.exitProgram);
 
-    logger.info(`Conversation complete. Cost: $${conversationCost.toFixed(3)}`);
+    info(`Conversation complete. Cost: $${conversationCost.toFixed(3)}`);
     const duration = Date.now() - startTime;
     await finalizeAgentRun(db, conversationId, duration, agentMessage.responseContent);
     if (!userMessage?.exitProgram) {
@@ -158,16 +151,15 @@ export async function runAgent(
   input: string,
   db: Database,
   model: string,
-  logLevel: LogLevelType,
   conversationId: number,
   contextAllocation: ContextAllocation,
 ) {
-  logger.debug("Starting runAgent");
+  debug("Starting runAgent");
   const startTime = Date.now();
 
   const apiKey = await getOrPromptForAPIKey(model);
   if (!apiKey) {
-    logger.error("No API key found");
+    error("No API key found");
     throw new Error("LLM API key not found. Please run the application again to set it up.");
   }
 
@@ -188,28 +180,28 @@ export async function runAgent(
     <user_query>
     ${input}
     </user_query>`;
-  logger.debug("Creating conversation in DB");
+  debug("Creating conversation in DB");
   const executeCommandTool = createExecuteCommandTool(db, conversationId);
   const waitTool = createWaitTool(db, conversationId);
-  logger.debug("Initializing OpenAI agent");
+  debug("Initializing OpenAI agent");
   const agent = getAiAgent({
     apiKey,
     modelId: model,
     tools: [executeCommandTool],
   });
-  logger.debug("Preparing to send request to LLM API");
+  debug("Preparing to send request to LLM API");
   messages.forEach((message, index) => {
     const contentPreview =
       message.content.length > 360
         ? `${message.content.slice(0, 300)}...[TRUNCATED]...${message.content.slice(-60)}`
         : message.content;
-    logger.debug(
+    debug(
       `Message #${index + 1}: role=${message.role}, content="${contentPreview}", length=${message.content.length}`,
     );
 
     if (message.options && message.options.toolCall) {
       message.options.toolCall.forEach((toolCall, callIndex) => {
-        logger.debug(
+        debug(
           `Tool Call #${callIndex + 1} for message #${index + 1}: toolName=${toolCall.name}, input=${JSON.stringify(
             toolCall.input,
           )}`,
@@ -218,20 +210,20 @@ export async function runAgent(
     }
 
     if (message.options && message.options.toolResult) {
-      logger.debug(
+      debug(
         `Tool Result for message #${index + 1}: result=${JSON.stringify(
           message.options.toolResult.result.slice(0, 300),
         )}`,
       );
     }
   });
-  logger.debug("Task message content to be sent: ");
+  debug("Task message content to be sent: ");
   if (taskMessageContent.length > 360) {
-    logger.debug(
+    debug(
       `Role=user, content="${taskMessageContent.slice(0, 300)}...[LOG_TRUNCATED]...${taskMessageContent.slice(-60)}", length=${taskMessageContent.length}`,
     );
   } else {
-    logger.debug(`Role=user, content="${taskMessageContent}", length=${taskMessageContent.length}`);
+    debug(`Role=user, content="${taskMessageContent}", length=${taskMessageContent.length}`);
   }
   const { responseContent, parts, cost } = await executeTask(
     agent,
@@ -243,7 +235,7 @@ export async function runAgent(
   );
 
   const totalTime = Date.now() - startTime;
-  logger.debug(`Task completed in ${totalTime}ms`);
+  debug(`Task completed in ${totalTime}ms`);
 
   return { parts, responseContent, cost };
 }
@@ -252,12 +244,12 @@ async function prepareMessages(
   userQuery: string,
   runDir: string,
   contextData: DynamicContextData,
-  config: object,
+  config: ConfigWithMetadata,
   db: Database,
   conversationId: number,
   contextAllocation: ContextAllocation,
 ): Promise<ChatMessage[]> {
-  logger.debug("Building system message");
+  debug("Building system message");
 
   // memeories must be added here when stage 1 is ready
   // const memories = await getMemories(userQuery);
@@ -280,7 +272,7 @@ async function prepareMessages(
     ...chatHistory,
   ];
 
-  logger.debug("messages length, (symbols):", JSON.stringify(messages).length);
+  debug("messages length, (symbols):", JSON.stringify(messages).length);
   return messages;
 }
 
@@ -298,19 +290,19 @@ async function executeTask(
   let stepNumber = 0;
   let taskCost = 0;
 
-  logger.debug("Starting task execution");
+  debug("Starting task execution");
 
-  const task = agent.createTask(userQuery, false, logger.getLevel() === LogLevel.DEBUG, messages);
+  const task = agent.createTask(userQuery, false, false, messages);
 
   for await (const stepOutput of task as any) {
     const stepStartTime = Date.now();
     try {
-      logger.debug(`Processing step ${stepNumber}`);
+      debug(`Processing step ${stepNumber}`);
       const parsedResponse = parseLLMResponse(stepOutput);
       if (parsedResponse.usage) {
         const costInfo = countUsageCost(parsedResponse.usage, model);
         taskCost += costInfo.costUSD;
-        logger.info(`Step cost: $${costInfo.costUSD.toFixed(6)}, Total cost so far: $${taskCost.toFixed(6)}`);
+        info(`Step cost: $${costInfo.costUSD.toFixed(6)}, Total cost so far: $${taskCost.toFixed(6)}`);
       }
       responseContent = parsedResponse.content;
 
@@ -319,7 +311,7 @@ async function executeTask(
         lastTextContent = responseContent;
 
         const stepExecutionTime = Date.now() - stepStartTime;
-        logger.debug(`Step ${stepNumber} execution time: ${stepExecutionTime}ms`);
+        debug(`Step ${stepNumber} execution time: ${stepExecutionTime}ms`);
 
         await insertMessage(
           db,
@@ -341,10 +333,10 @@ async function executeTask(
       }
     } catch (error) {
       if (error instanceof Error && error.message === "<input_aborted_by_user />") {
-        logger.info("Task aborted by user");
+        info("Task aborted by user");
         await insertMessage(db, conversationId, stepNumber, "Task aborted by user.", 0, MESSAGE_ROLES.USER);
       }
-      logger.error(`Error in agent execution: ${error}`);
+      error(`Error in agent execution: ${error}`);
       throw error;
     }
   }
@@ -381,20 +373,20 @@ async function finalizeAgentRun(
   totalTime: number,
   finalResponse: string,
 ): Promise<void> {
-  logger.debug("Starting finalization");
+  debug("Starting finalization");
   const fullConversation = getAllConversationData(db, conversationId);
-  logger.debug(`Last message raw: ${finalResponse}`);
+  debug(`Last message raw: ${finalResponse}`);
 
-  logger.debug("Generating conversation title");
+  debug("Generating conversation title");
   const title = await generateConversationTitle(fullConversation, {
     apiKey: await getOrPromptForAPIKey(WEAK_MODEL_ID),
     modelName: WEAK_MODEL_ID,
   });
 
-  logger.debug("Getting user evaluation score");
+  debug("Getting user evaluation score");
   const userScore = getUserEvaluationScore();
 
-  logger.debug("Updating conversation fields");
+  debug("Updating conversation fields");
   await updateConversationFields(db, {
     conversationId,
     title: await title,
@@ -408,7 +400,7 @@ async function finalizeAgentRun(
     response: finalResponse,
   });
 
-  logger.debug("Saving conversation document");
+  debug("Saving conversation document");
   await saveConversationDocument(db, conversationId);
-  logger.debug("Finalization complete");
+  debug("Finalization complete");
 }

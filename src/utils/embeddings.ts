@@ -1,7 +1,6 @@
 import { OpenAIEmbedding } from "llamaindex";
 import { WEAK_MODEL_ID } from "../constants";
 import { getOrPromptForAPIKey } from "./getOrPromptForAPIKey";
-import { logger } from "./logger";
 
 // const embeddingModelId = ALL_OPENAI_EMBEDDING_MODELS["text-embedding-3-small"];
 const embeddingModelId = "text-embedding-3-small";

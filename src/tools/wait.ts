@@ -1,7 +1,7 @@
 import { FunctionTool } from "llamaindex";
 import { AsyncCommand, AsyncCommandTracker } from "../ai/asyncCommandTracker";
 import { Database } from "../utils/database";
-import { logger } from "../utils/logger"; // Import logger for debugging
+import { debug, info } from "../utils/logger/Logger";
 import { createToolMiddleware } from "./toolMiddleware";
 
 interface WaitParams {
@@ -14,18 +14,18 @@ const waitCallback = async (params: WaitParams): Promise<string> => {
   const { seconds, reason, interruptOn = [] } = params;
   const tracker = AsyncCommandTracker.getInstance();
 
-  logger.debug(`Starting wait for ${seconds} seconds with reason: ${reason || "No reason provided"}`);
+  debug(`Starting wait for ${seconds} seconds with reason: ${reason || "No reason provided"}`);
 
   return new Promise((resolve) => {
     let interrupted = false;
 
     // Setup command status change listener
     const statusListener = (command: AsyncCommand) => {
-      logger.debug(`Command ${command.id} status changed to ${command.status}`);
+      debug(`Command ${command.id} status changed to ${command.status}`);
       if (interruptOn.includes(command.id) && command.status !== "running") {
         interrupted = true;
         cleanup();
-        logger.info(`Interrupted waiting: Command ${command.id} has a status of ${command.status}`);
+        info(`Interrupted waiting: Command ${command.id} has a status of ${command.status}`);
         resolve(
           JSON.stringify({
             interrupted: true,
@@ -44,7 +44,7 @@ const waitCallback = async (params: WaitParams): Promise<string> => {
     const timeout = setTimeout(() => {
       if (!interrupted) {
         cleanup();
-        logger.info(`Wait completed for ${seconds} seconds with reason: ${reason || "No reason provided"}`);
+        info(`Wait completed for ${seconds} seconds with reason: ${reason || "No reason provided"}`);
         resolve(
           JSON.stringify({
             interrupted: false,

@@ -9,7 +9,7 @@ import {
 } from "llamaindex";
 import { EMBEDDINGS_MODEL_ID, VECTOR_STORE_PATH, WEAK_MODEL_ID } from "../../constants";
 import { getOrPromptForAPIKey } from "../../utils/getOrPromptForAPIKey";
-import { logger } from "../../utils/logger";
+import { debug, info } from "../../utils/logger/Logger";
 
 let vectorStoreIndex: VectorStoreIndex | null = null;
 
@@ -21,7 +21,7 @@ export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
   let index: VectorStoreIndex;
 
   try {
-    logger.debug("Attempting to load existing index");
+    debug("Attempting to load existing index");
     index = await VectorStoreIndex.init({
       storageContext,
       serviceContext: serviceContextFromDefaults({
@@ -29,11 +29,11 @@ export async function initializeVectorStoreIndex(): Promise<VectorStoreIndex> {
         llm: new OpenAI({ apiKey: weakModelApiKey, model: WEAK_MODEL_ID }),
       }),
     });
-    logger.debug("Existing index loaded successfully");
+    debug("Existing index loaded successfully");
   } catch (error) {
-    logger.debug("Existing index not found. Creating new index");
+    debug("Existing index not found. Creating new index");
     index = await VectorStoreIndex.fromDocuments([], { storageContext });
-    logger.info("New index created successfully");
+    info("New index created successfully");
   }
 
   return index;
@@ -44,7 +44,7 @@ export async function insertDocument(document: Document): Promise<void> {
     vectorStoreIndex = await initializeVectorStoreIndex();
   }
   await vectorStoreIndex.insert(document);
-  logger.info("Document inserted into vector store.");
+  info("Document inserted into vector store.");
 }
 
 export async function retrieveDocuments(query: string): Promise<string[]> {
@@ -55,10 +55,10 @@ export async function retrieveDocuments(query: string): Promise<string[]> {
   try {
     const retriever = vectorStoreIndex.asRetriever({ similarityTopK: 5 });
     const nodes = await retriever.retrieve(query);
-    logger.debug(`Retrieved ${nodes.length} relevant nodes.`);
+    debug(`Retrieved ${nodes.length} relevant nodes.`);
     return nodes.map((node) => node.node.getContent(MetadataMode.NONE));
-  } catch (error) {
-    logger.error("Error retrieving documents from vector store:", error);
+  } catch (err) {
+    Error("Error retrieving documents from vector store:", err);
     return [];
   }
 }
@@ -75,5 +75,5 @@ export async function addConversationDocument(
   });
 
   await insertDocument(document);
-  logger.info(`Conversation document for ID: ${conversationId} added to vector store.`);
+  info(`Conversation document for ID: ${conversationId} added to vector store.`);
 }

@@ -8,18 +8,21 @@ export interface ParsedArguments {
   input: string;
   resetKey: boolean;
   showHelp: boolean;
-  setLogLevel?: LogLevelType;
-  getLogLevel: boolean;
+  logToFile?: boolean;
+  logPath?: string;
+  logLevel?: LogLevelType;
   model?: string;
   showAPIKeys: boolean;
-  newConversation: boolean
+  newConversation: boolean;
 }
 export function parseArguments(args: string[]): ParsedArguments {
   const parsedArgs: ParsedArguments = {
     input: "",
     resetKey: false,
     showHelp: false,
-    getLogLevel: false,
+    logToFile: undefined,
+    logPath: undefined,
+    logLevel: undefined,
     showAPIKeys: false,
     newConversation: false,
   };
@@ -37,20 +40,19 @@ export function parseArguments(args: string[]): ParsedArguments {
       case "--show-keys":
         parsedArgs.showAPIKeys = true;
         break;
-      case "--get-log-level":
-        parsedArgs.getLogLevel = true;
-        break;
-      case "--new-chat":
-        parsedArgs.newConversation = true;
+      case "--log-to-file":
+        parsedArgs.logToFile = true;
         break;
       default:
-        if (arg.startsWith("--log-level=") || arg.startsWith("--set-log-level=")) {
+        if (arg.startsWith("--log-level=")) {
           const levelString = arg.split("=")[1].toUpperCase() as keyof typeof LogLevel;
           if (LogLevel[levelString]) {
-            parsedArgs.setLogLevel = levelString;
+            parsedArgs.logLevel = LogLevel[levelString];
           } else {
-            throw new Error(`Invalid log level '${levelString}'.`);
+            throw new Error(`Invalid log level '${levelString}'`);
           }
+        } else if (arg.startsWith("--log-path=")) {
+          parsedArgs.logPath = arg.split("=")[1];
         } else if (arg.startsWith("--model=")) {
           const modelInput = arg.split("=")[1];
           try {
