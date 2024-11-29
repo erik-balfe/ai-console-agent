@@ -132,7 +132,7 @@ export async function agentLoop(
         userQuery = userMessage.answer;
       }
       if (userMessage.cancelled) {
-        console.log("Saving conversation data");
+        debug("Saving conversation data");
       }
     } while (!agentMessage?.taskComplete && !userMessage?.cancelled && !userMessage.exitProgram);
 
@@ -187,7 +187,7 @@ export async function runAgent(
   const agent = getAiAgent({
     apiKey,
     modelId: model,
-    tools: [executeCommandTool],
+    tools: [executeCommandTool, waitTool],
   });
   debug("Preparing to send request to LLM API");
   messages.forEach((message, index) => {

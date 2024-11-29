@@ -1,8 +1,9 @@
+import { debug } from "../utils/logger";
 import { getUserEvaluation } from "./userEvaluation";
 
 const testUserEvaluation = async () => {
   const rating = await getUserEvaluation();
-  console.log(`User rating: ${rating}`);
+  debug(`User rating: ${rating}`);
 };
 
 testUserEvaluation();

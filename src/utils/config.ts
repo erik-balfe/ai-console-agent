@@ -1,5 +1,7 @@
 import { execSync } from "child_process";
 import fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { APP_CONFIG_FILE_PATH, CONFIG_DIR_PATH, MODELS, USER_PREFS_FILE_PATH } from "../constants";
 import { LogLevel, LogLevelType } from "./logger";
 
@@ -20,13 +22,15 @@ export interface LoggingConfig {
   level: LogLevelType;
   enabled: boolean;
   path: string;
+  consoleOutputEnabled?: boolean;
 }
 
 const DEFAULT_APP_CONFIG: AppConfig = {
   logging: {
     level: LogLevel.WARN,
     enabled: true,
-    path: `${process.env.HOME}/.ai-console-agent/logs/ai-console-agent.log`,
+    path: path.join(os.homedir(), ".ai-console-agent/logs/ai-console-agent.log"),
+    consoleOutputEnabled: false,
   },
   model: Object.values(MODELS).find((model) => model.default)?.id || "",
   contextWindowLimit: Infinity,
@@ -108,43 +112,6 @@ function execCommand(command: string, cwd: string): string {
   }
 }
 
-// function initGitRepo() {
-//   if (!fs.existsSync(path.join(CONFIG_DIR_PATH, ".git"))) {
-//     execCommand("git init", CONFIG_DIR_PATH);
-//     execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
-//     execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
-//     execCommand('git commit -m "Initial commit"', CONFIG_DIR_PATH);
-//   }
-// }
-
-// function commitChanges(message: string): boolean {
-//   try {
-//     execCommand("git add APP_CONFIG_FILE_PATH", CONFIG_DIR_PATH);
-//     execCommand("git add USER_PREFS_FILE_PATH", CONFIG_DIR_PATH);
-//     execCommand(`git commit -m "${message}"`, CONFIG_DIR_PATH);
-//     return true;
-//   } catch (error) {
-//     console.error("Failed to commit changes:", error);
-//     return false;
-//   }
-// }
-
-// function getLastCommitHash(): string {
-//   return execCommand("git rev-parse HEAD", CONFIG_DIR_PATH).trim();
-// }
-
-// export function revertLastChange(): boolean {
-//   try {
-//     const lastCommitHash = getLastCommitHash();
-//     execCommand(`git revert --no-commit ${lastCommitHash}`, CONFIG_DIR_PATH);
-//     execCommand('git commit -m "Revert last change due to config issue"', CONFIG_DIR_PATH);
-//     return true;
-//   } catch (error) {
-//     console.error("Failed to revert last change:", error);
-//     return false;
-//   }
-// }
-
 export interface ConfigWithMetadata {
   appConfig: AppConfig;
   userPrefs: UserPreferences;
@@ -169,19 +136,34 @@ export function loadConfig(): ConfigWithMetadata {
       rawAppConfig = appConfigData.raw;
       appConfig = {
         ...DEFAULT_APP_CONFIG,
-        logLevel: appConfigData.parsed.logLevel?.toUpperCase() as LogLevelType,
-        model: appConfigData.parsed.model,
-        contextWindowLimit: Number(appConfigData.parsed.contextWindowLimit),
+        logging: {
+          level:
+            (appConfigData.parsed["logging.level"]?.toUpperCase() as LogLevelType) ||
+            DEFAULT_APP_CONFIG.logging.level,
+          enabled: appConfigData.parsed["logging.enabled"] === "true" || DEFAULT_APP_CONFIG.logging.enabled,
+          path: resolveHomeDir(appConfigData.parsed["logging.path"]) || DEFAULT_APP_CONFIG.logging.path,
+          consoleOutputEnabled:
+            appConfigData.parsed["logging.consoleOutputEnabled"] === "true" ||
+            DEFAULT_APP_CONFIG.logging.consoleOutputEnabled,
+        },
+        model: appConfigData.parsed.model || DEFAULT_APP_CONFIG.model,
+        contextWindowLimit:
+          Number(appConfigData.parsed.contextWindowLimit) || DEFAULT_APP_CONFIG.contextWindowLimit,
       };
     } else {
       // Create default config with comments
-      const defaultAppConfigContent = `# AI Console Agent Application Configuration
-# Log level (DEBUG, INFO, WARN, ERROR)
-logLevel=${DEFAULT_APP_CONFIG.logLevel}
-# AI model to use for processing
-model=${DEFAULT_APP_CONFIG.model}
-# Context limit for reducing costs
-contextWindowLimit=${DEFAULT_APP_CONFIG.contextWindowLimit}`;
+      const defaultAppConfigContent = [
+        "# AI Console Agent Application Configuration",
+        "# Logging configuration",
+        `logging.enabled=${DEFAULT_APP_CONFIG.logging.enabled}`,
+        `logging.level=${DEFAULT_APP_CONFIG.logging.level}`,
+        `logging.path=${DEFAULT_APP_CONFIG.logging.path}`,
+        `logging.consoleOutputEnabled=${DEFAULT_APP_CONFIG.logging.consoleOutputEnabled}`,
+        "# AI model to use for processing",
+        `model=${DEFAULT_APP_CONFIG.model}`,
+        "# Context limit for reducing costs",
+        `contextWindowLimit=${DEFAULT_APP_CONFIG.contextWindowLimit}`,
+      ].join("\n");
 
       fs.writeFileSync(APP_CONFIG_FILE_PATH, defaultAppConfigContent);
       rawAppConfig = defaultAppConfigContent;
@@ -198,11 +180,13 @@ contextWindowLimit=${DEFAULT_APP_CONFIG.contextWindowLimit}`;
       };
     } else {
       // Create default user preferences with comments
-      const defaultUserPrefsContent = `# User Preferences Configuration
-# Technical expertise level (0.0 - 1.0)
-techExpertiseLevel=${DEFAULT_USER_PREFS.techExpertiseLevel}
-# Preferred name for interactions
-preferredName=`;
+      const defaultUserPrefsContent = [
+        `# User Preferences Configuration`,
+        `# Technical expertise level (0.0 - 1.0)`,
+        `techExpertiseLevel=${DEFAULT_USER_PREFS.techExpertiseLevel}`,
+        `# Preferred name for interactions`,
+        `preferredName=`,
+      ].join("\n");
 
       fs.writeFileSync(USER_PREFS_FILE_PATH, defaultUserPrefsContent);
       rawUserConfig = defaultUserPrefsContent;
@@ -234,4 +218,9 @@ export function saveConfig(appConfig: Partial<AppConfig>, userPrefs: Partial<Use
     console.error("Error saving config:", error);
     return false;
   }
+}
+
+function resolveHomeDir(filePath: string | undefined): string | undefined {
+  if (!filePath) return undefined;
+  return filePath.replace(/^~([^/]*)/, (match, p1) => (p1 ? path.join(os.homedir(), p1) : os.homedir()));
 }

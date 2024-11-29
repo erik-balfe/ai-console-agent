@@ -14,6 +14,7 @@ export interface LoggerConfig {
     enabled: boolean;
     path: string;
   };
+  consoleOutputEnabled?: boolean; // New field
 }
 
 export interface LogEntry {

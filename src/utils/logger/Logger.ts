@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { mkdir } from "fs/promises";
 import { dirname } from "path";
-import { DEFAULT_MAX_LOG_SIZE, LogLevel, LogLevelType } from "./constants";
+import { DEFAULT_MAX_LOG_LINES, DEFAULT_MAX_LOG_SIZE, LogLevel, LogLevelType } from "./constants";
 import { LogContext, LoggerConfig } from "./types";
 
 export class Logger {
@@ -43,6 +43,7 @@ export class Logger {
 
     try {
       const file = Bun.file(this.logFile);
+
       const stats = file.size;
 
       if (stats > this.maxLogFileSize) {
@@ -99,23 +100,21 @@ export class Logger {
     return `${timestamp} [${level}] ${contextStr} ${message}`;
   }
 
-  private static log(level: LogLevelType, label: string, ...messages: any[]): void {
+  private static log(level: LogLevelType, label: string, message: string, context?: LogContext): void {
     const instance = Logger.getInstance();
-    const color = chalk[this.getLabelColor(label)];
 
-    if (!instance.shouldLog(level, instance.context)) return;
+    if (!instance.shouldLog(level, context)) return;
 
-    const formattedMessages = messages
-      .map((msg) => (typeof msg === "object" ? JSON.stringify(msg) : msg))
-      .join(" ");
-
-    const logMessage = instance.formatMessage(level, formattedMessages, instance.context);
+    const logMessage = instance.formatMessage(level, message, context);
 
     // Console output with color
-    if (typeof color === "function") {
-      console.log(color(logMessage));
-    } else {
-      console.log(logMessage);
+    if (instance.config.consoleOutputEnabled) {
+      const color = chalk[Logger.getLabelColor(level)];
+      if (typeof color === "function") {
+        console.log(color(logMessage), "", "");
+      } else {
+        console.log(logMessage, "", "");
+      }
     }
 
     // File output without color
@@ -124,50 +123,60 @@ export class Logger {
     }
   }
 
-  private static getLabelColor(label: string): keyof typeof chalk {
-    const colors: Record<string, keyof typeof chalk> = {
-      CMD: "cyan",
-      OUTPUT: "gray",
-      AGENT: "green",
-      USER: "magenta",
-      ERROR: "red",
-      WARN: "yellow",
-      INFO: "blue",
-      DEBUG: "gray",
+  private static getLabelColor(level: LogLevelType): keyof typeof chalk {
+    const colors: Record<LogLevelType, keyof typeof chalk> = {
+      [LogLevel.DEBUG]: "gray",
+      [LogLevel.INFO]: "blue",
+      [LogLevel.WARN]: "yellow",
+      [LogLevel.ERROR]: "red",
     };
-    return colors[label] || "white";
+    return colors[level];
   }
 
-  static debug(label: string, ...messages: any[]): void {
-    Logger.log(LogLevel.DEBUG, label, ...messages);
+  static debug(...args: any[]): void {
+    Logger.processLogCall(LogLevel.DEBUG, ...args);
   }
 
-  static info(label: string, ...messages: any[]): void {
-    Logger.log(LogLevel.INFO, label, ...messages);
+  static info(...args: any[]): void {
+    Logger.processLogCall(LogLevel.INFO, ...args);
   }
 
-  static warn(label: string, ...messages: any[]): void {
-    Logger.log(LogLevel.WARN, label, ...messages);
+  static warn(...args: any[]): void {
+    Logger.processLogCall(LogLevel.WARN, ...args);
   }
 
-  static error(label: string, ...messages: any[]): void {
-    Logger.log(LogLevel.ERROR, label, ...messages);
+  static error(...args: any[]): void {
+    Logger.processLogCall(LogLevel.ERROR, ...args);
   }
 
-  static cmd(...messages: any[]): void {
-    Logger.log(LogLevel.INFO, "CMD", ...messages);
+  static cmd(...args: any[]): void {
+    Logger.processLogCall(LogLevel.INFO, "CMD", ...args);
   }
 
-  static cmdOut(...messages: any[]): void {
-    Logger.log(LogLevel.DEBUG, "OUTPUT", ...messages);
+  static cmdOut(...args: any[]): void {
+    Logger.processLogCall(LogLevel.DEBUG, "OUTPUT", ...args);
   }
 
-  static agent(...messages: any[]): void {
-    Logger.log(LogLevel.INFO, "AGENT", ...messages);
+  static agent(...args: any[]): void {
+    Logger.processLogCall(LogLevel.INFO, "AGENT", ...args);
   }
 
-  static user(...messages: any[]): void {
-    Logger.log(LogLevel.INFO, "USER", ...messages);
+  static user(...args: any[]): void {
+    Logger.processLogCall(LogLevel.INFO, "USER", ...args);
+  }
+
+  private static processLogCall(level: LogLevelType, ...args: any[]): void {
+    if (args.length === 1 && typeof args[0] === "string") {
+      Logger.log(level, "DEFAULT", args[0]);
+    } else if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "string") {
+      Logger.log(level, args[0], args[1]);
+    } else if (args.length === 1 && typeof args[0] === "object" && args[0].label && args[0].message) {
+      Logger.log(level, args[0].label, args[0].message, args[0].context);
+    } else if (args.length === 1 && typeof args[0] === "object" && args[0].message) {
+      Logger.log(level, "DEFAULT", args[0].message, args[0].context);
+    } else {
+      Logger.log(level, "DEFAULT", args.map((arg) => JSON.stringify(arg)).join(" "));
+    }
   }
 }
 

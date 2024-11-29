@@ -36,12 +36,11 @@ async function main() {
 
     await Logger.initialize({
       level: appConfig.logging.level,
-      fileOutput: appConfig.logging.enabled
-        ? {
-            enabled: true,
-            path: appConfig.logging.path,
-          }
-        : undefined,
+      fileOutput: {
+        enabled: appConfig.logging.enabled,
+        path: appConfig.logging.path,
+      },
+      consoleOutputEnabled: appConfig.logging.consoleOutputEnabled,
     });
 
     if (showHelp) {

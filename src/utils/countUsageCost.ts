@@ -22,10 +22,10 @@ export function countUsageCost(usage: Record<string, unknown>, model: string): U
   const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
   const cachedTokens = usage.prompt_tokens_details?.cached_tokens || 0;
 
-  console.log(`Model: ${model}`);
-  console.log(`Input Tokens: ${inputTokens}`);
-  console.log(`Cached Tokens: ${cachedTokens}`);
-  console.log(`Output Tokens: ${outputTokens}`);
+  debug(`Model: ${model}`);
+  debug(`Input Tokens: ${inputTokens}`);
+  debug(`Cached Tokens: ${cachedTokens}`);
+  debug(`Output Tokens: ${outputTokens}`);
 
   const inputCost = inputTokens * modelConfig.price.input;
   const cachedInputCost = cachedTokens * (modelConfig.price.inputCacheHit ?? modelConfig.price.input);
