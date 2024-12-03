@@ -41,7 +41,7 @@ export async function getConversationId(
   let conversationId: number;
 
   if (newConversation || !lastInteractionRecord?.conversationId) {
-    debug("No previous interaction found. Creating a new conversation entry.");
+    debug("No previous interaction found or new conversation flag set. Creating a new conversation entry.");
     conversationId = await insertConversation(db, userQuery, Date.now());
     debug(`New conversation ID created: ${conversationId}`);
     return conversationId;
@@ -71,7 +71,7 @@ export async function agentLoop(
   contextAllocation: ContextAllocation,
   newConversation: boolean,
 ) {
-  let questionForUser: string = "What you your task or question to Ai-console-agent?:";
+  let questionForUser: string = "What is your task or question to Ai-console-agent?:";
   let userQuery = consoleInput;
   let agentMessage;
   let userMessage: UserCliResponse | null = {
@@ -81,8 +81,15 @@ export async function agentLoop(
     duration: 0,
   };
 
-  // cycle through different conversation
+  // Ensure newConversation flag is reset after the first use
+  let isFirstMessage = true;
+
+  // cycle through different conversations
   while (!userMessage?.exitProgram) {
+    const isNewConversation = isFirstMessage ? newConversation : false;
+    debug("isNewConversation", isNewConversation);
+    isFirstMessage = false;
+
     const startTime = Date.now();
     let conversationCost = 0;
     if (!userQuery || !userMessage || userMessage.cancelled) {
@@ -101,16 +108,32 @@ export async function agentLoop(
       continue;
     }
 
-    const conversationId = await getConversationId(db, userQuery, newConversation);
+    const conversationId = await getConversationId(db, userQuery, isNewConversation);
     debug(`Conversation ID: ${conversationId}`);
-    debug(`Conversation ID raw: ${JSON.stringify(conversationId)}`);
     if (!conversationId) {
       throw new Error("Conversation ID is not a number");
     }
-    // cycle throught question-answer message pairs in the conversation
+    await insertMessage(
+      db,
+      conversationId,
+      0, // step number
+      userQuery,
+      0,
+      MESSAGE_ROLES.USER,
+    );
+
     do {
+      const isNewConversation = isFirstMessage ? newConversation : false;
+      debug("isNewConversation", isNewConversation);
       debug("Running agent with user query");
-      agentMessage = await runAgent(userQuery, db, appConfig.model, conversationId, contextAllocation);
+      agentMessage = await runAgent(
+        userQuery,
+        db,
+        appConfig.model,
+        conversationId,
+        contextAllocation,
+        isNewConversation,
+      );
       conversationCost += agentMessage.cost;
       info(`Agent task response received: ${JSON.stringify(agentMessage)}`);
       console.write(formatAgentMessage(agentMessage.responseContent));
@@ -153,6 +176,7 @@ export async function runAgent(
   model: string,
   conversationId: number,
   contextAllocation: ContextAllocation,
+  newConversation: boolean,
 ) {
   debug("Starting runAgent");
   const startTime = Date.now();
@@ -166,20 +190,17 @@ export async function runAgent(
   const runDir = initializeRun(input);
   const config = loadConfig();
   const contextData = await gatherContextData();
-  const messages = await prepareMessages(
-    input,
+  const messages = await prepareMessages({
+    userQuery: input,
     runDir,
     contextData,
     config,
     db,
     conversationId,
     contextAllocation,
-  );
-  const taskMessageContent = `
-    Now, please process the following user query:
-    <user_query>
-    ${input}
-    </user_query>`;
+    newConversation,
+  });
+  const taskMessageContent = `${input}`;
   debug("Creating conversation in DB");
   const executeCommandTool = createExecuteCommandTool(db, conversationId);
   const waitTool = createWaitTool(db, conversationId);
@@ -190,47 +211,15 @@ export async function runAgent(
     tools: [executeCommandTool, waitTool],
   });
   debug("Preparing to send request to LLM API");
-  messages.forEach((message, index) => {
-    const contentPreview =
-      message.content.length > 360
-        ? `${message.content.slice(0, 300)}...[TRUNCATED]...${message.content.slice(-60)}`
-        : message.content;
-    debug(
-      `Message #${index + 1}: role=${message.role}, content="${contentPreview}", length=${message.content.length}`,
-    );
-
-    if (message.options && message.options.toolCall) {
-      message.options.toolCall.forEach((toolCall, callIndex) => {
-        debug(
-          `Tool Call #${callIndex + 1} for message #${index + 1}: toolName=${toolCall.name}, input=${JSON.stringify(
-            toolCall.input,
-          )}`,
-        );
-      });
-    }
-
-    if (message.options && message.options.toolResult) {
-      debug(
-        `Tool Result for message #${index + 1}: result=${JSON.stringify(
-          message.options.toolResult.result.slice(0, 300),
-        )}`,
-      );
-    }
-  });
-  debug("Task message content to be sent: ");
-  if (taskMessageContent.length > 360) {
-    debug(
-      `Role=user, content="${taskMessageContent.slice(0, 300)}...[LOG_TRUNCATED]...${taskMessageContent.slice(-60)}", length=${taskMessageContent.length}`,
-    );
-  } else {
-    debug(`Role=user, content="${taskMessageContent}", length=${taskMessageContent.length}`);
-  }
+  debug("messages: ", JSON.stringify(messages));
+  const messagesWithoutUserQuery = messages.slice(0, -1);
+  debug("messages without user query: ", JSON.stringify(messagesWithoutUserQuery));
   const { responseContent, parts, cost } = await executeTask(
     agent,
     taskMessageContent,
     db,
     conversationId,
-    messages,
+    messagesWithoutUserQuery,
     model,
   );
 
@@ -240,21 +229,38 @@ export async function runAgent(
   return { parts, responseContent, cost };
 }
 
-async function prepareMessages(
-  userQuery: string,
-  runDir: string,
-  contextData: DynamicContextData,
-  config: ConfigWithMetadata,
-  db: Database,
-  conversationId: number,
-  contextAllocation: ContextAllocation,
-): Promise<ChatMessage[]> {
+interface PrepareMessagesParams {
+  userQuery: string;
+  runDir: string;
+  contextData: DynamicContextData;
+  config: ConfigWithMetadata;
+  db: Database;
+  conversationId: number;
+  contextAllocation: ContextAllocation;
+  newConversation: boolean;
+}
+
+async function prepareMessages({
+  userQuery,
+  runDir,
+  contextData,
+  config,
+  db,
+  conversationId,
+  contextAllocation,
+  newConversation,
+}: PrepareMessagesParams): Promise<ChatMessage[]> {
   debug("Building system message");
 
   // memeories must be added here when stage 1 is ready
   // const memories = await getMemories(userQuery);
 
-  const chatHistory = await constructChatHistory(db, conversationId, contextAllocation.chatHistory);
+  const chatHistory = await constructChatHistory(
+    db,
+    conversationId,
+    contextAllocation.chatHistory,
+    newConversation,
+  );
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -334,7 +340,14 @@ async function executeTask(
     } catch (error) {
       if (error instanceof Error && error.message === "<input_aborted_by_user />") {
         info("Task aborted by user");
-        await insertMessage(db, conversationId, stepNumber, "Task aborted by user.", 0, MESSAGE_ROLES.USER);
+        await insertMessage(
+          db,
+          conversationId,
+          stepNumber,
+          "<app-event>Task aborted by user<app-event>.",
+          0,
+          MESSAGE_ROLES.USER,
+        );
       }
       error(`Error in agent execution: ${error}`);
       throw error;

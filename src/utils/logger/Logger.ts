@@ -1,13 +1,15 @@
 import chalk from "chalk";
 import { mkdir } from "fs/promises";
-import { dirname } from "path";
-import { DEFAULT_MAX_LOG_LINES, DEFAULT_MAX_LOG_SIZE, LogLevel, LogLevelType } from "./constants";
+import { dirname, resolve } from "path";
+import pino from "pino";
+import { DEFAULT_MAX_LOG_SIZE, LogLevel, LogLevelType } from "./constants";
 import { LogContext, LoggerConfig } from "./types";
 
 export class Logger {
   private static instance: Logger | null = null;
   private config: LoggerConfig;
   private context?: LogContext;
+  private logger?: pino.Logger;
   private logFile?: string;
   private maxLogFileSize = DEFAULT_MAX_LOG_SIZE;
 
@@ -19,14 +21,32 @@ export class Logger {
     if (!Logger.instance) {
       Logger.instance = new Logger(config);
       if (config.fileOutput?.enabled) {
-        const logDir = dirname(config.fileOutput.path);
+        const logDir = dirname(resolve(config.fileOutput.path));
         await mkdir(logDir, { recursive: true });
-        Logger.instance.logFile = config.fileOutput.path;
-        await Bun.write(
-          Bun.file(config.fileOutput.path),
-          `=== Log file created/opened at ${new Date().toISOString()} ===\n`,
-          { append: true },
-        );
+        Logger.instance.logFile = resolve(config.fileOutput.path);
+        Logger.instance.logger = pino({
+          level: config.level,
+          transport: {
+            target: "pino/file",
+            options: {
+              destination: Logger.instance.logFile,
+              sync: true, // Synchronous writing
+            },
+          },
+          serializers: {
+            context: (ctx) => {
+              return ctx
+                ? Object.entries(ctx).reduce(
+                    (acc, [key, value]) => {
+                      acc[key] = value;
+                      return acc;
+                    },
+                    {} as Record<string, any>,
+                  )
+                : undefined;
+            },
+          },
+        });
       }
     }
   }
@@ -36,29 +56,6 @@ export class Logger {
       throw new Error("Logger not initialized. Call Logger.initialize() first");
     }
     return Logger.instance;
-  }
-
-  private writeToFile(message: string): void {
-    if (!this.logFile) return;
-
-    try {
-      const file = Bun.file(this.logFile);
-
-      const stats = file.size;
-
-      if (stats > this.maxLogFileSize) {
-        const content = Bun.file(this.logFile).text();
-        Promise.resolve(content).then((text) => {
-          const lines = text.split("\n");
-          const newContent = lines.slice(-DEFAULT_MAX_LOG_LINES).join("\n");
-          Bun.write(Bun.file(this.logFile), newContent);
-        });
-      }
-
-      Bun.write(Bun.file(this.logFile), message + "\n", { append: true });
-    } catch (error) {
-      console.error("Failed to write to log file:", error);
-    }
   }
 
   private logLevelValue(level: LogLevelType): number {
@@ -111,15 +108,15 @@ export class Logger {
     if (instance.config.consoleOutputEnabled) {
       const color = chalk[Logger.getLabelColor(level)];
       if (typeof color === "function") {
-        console.log(color(logMessage), "", "");
+        console.log(color(logMessage));
       } else {
-        console.log(logMessage, "", "");
+        console.log(logMessage);
       }
     }
 
     // File output without color
-    if (instance.config.fileOutput?.enabled) {
-      instance.writeToFile(logMessage);
+    if (instance.config.fileOutput?.enabled && instance.logger) {
+      instance.logger[level.toLowerCase()](message, { context, label });
     }
   }
 

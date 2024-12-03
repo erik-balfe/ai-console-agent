@@ -7,5 +7,5 @@ export const LogLevel = {
 
 export type LogLevelType = (typeof LogLevel)[keyof typeof LogLevel];
 
-export const DEFAULT_MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
-export const DEFAULT_MAX_LOG_LINES = 1000;
+export const DEFAULT_MAX_LOG_SIZE = 100 * 1024 * 1024; // 100MB
+export const DEFAULT_MAX_LOG_LINES = 80000;

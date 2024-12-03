@@ -5,6 +5,7 @@ export const API_KEY_PROMPTS = {
   OPENAI: "Please enter your OpenAI API key: ",
   GROQ: "Please enter your Groq API key: ",
   ANTHROPIC: "Please enter your Anthropic API key: ",
+  DEEPINFRA: "Please enter your DeepInfra API key: ",
 } as const;
 
 export type APIProvider = keyof typeof API_KEY_PROMPTS;
@@ -23,8 +24,8 @@ export const AGENT_CONTEXT_ALLOCATION = "60000";
 
 export const CONFIG_DIR_PATH = path.join(getUserHomeDir(), ".ai-console-agent");
 
-export const APP_CONFIG_FILE_NAME = "app_config.json";
-export const USER_PREFS_FILE_NAME = "user_preferences.json";
+export const APP_CONFIG_FILE_NAME = "app_config.txt";
+export const USER_PREFS_FILE_NAME = "user_preferences.txt";
 export const APP_CONFIG_FILE_PATH = path.join(CONFIG_DIR_PATH, APP_CONFIG_FILE_NAME);
 export const USER_PREFS_FILE_PATH = path.join(CONFIG_DIR_PATH, USER_PREFS_FILE_NAME);
 export const EMBEDDINGS_MODEL_ID = "text-embedding-3-small";
@@ -45,6 +46,9 @@ export const AVAILABLE_MODELS = {
   claude35Sonnet: "claude-3-5-sonnet-latest",
   claude35Haiku: "claude-3-5-haiku-latest",
   llama: "llama3-groq-70b-8192-tool-use-preview",
+  qwen25Coder32: "Qwen/Qwen2.5-Coder-32B-Instruct",
+  qwen25Coder32Fast: "Qwen/Qwen2.5-Coder-32B-Instruct-fast",
+  // qwenQwQ32: "Qwen/QwQ-32B-Preview",
 };
 
 // 4. **Intentional Memory Management**:
@@ -66,12 +70,13 @@ interface AIModelConfig {
   knowledgeCutoff: string;
   priceDesc: string;
   default?: boolean;
+  description: string;
 }
 
 export const MODELS: Record<string, AIModelConfig> = {
   "gpt-4o-mini": {
     id: "gpt-4o-mini",
-    friendlyName: "openAIGpt4oMiniModel",
+    friendlyName: "gpt4oMini",
     maxContextSize: 128000,
     price: {
       input: 0.15 / 1000000,
@@ -83,10 +88,11 @@ export const MODELS: Record<string, AIModelConfig> = {
     functionCalling: true,
     knowledgeCutoff: "08.08.2024",
     default: false,
+    description: "Smaller, faster GPT-4",
   },
   "gpt-4o": {
     id: "gpt-4o",
-    friendlyName: "openAIGpt4oModel",
+    friendlyName: "gpt4",
     maxContextSize: 128000,
     price: {
       input: 2.5 / 1000000,
@@ -98,6 +104,7 @@ export const MODELS: Record<string, AIModelConfig> = {
     functionCalling: true,
     knowledgeCutoff: "8.08.2024",
     default: false,
+    description: "Full GPT-4",
   },
   "claude-3-5-sonnet-latest": {
     id: "claude-3-5-sonnet-latest",
@@ -113,6 +120,7 @@ export const MODELS: Record<string, AIModelConfig> = {
     functionCalling: true,
     knowledgeCutoff: "April 2024",
     default: false,
+    description: "Best Claude model. Pricey but it worth it. Gread at any tasks.",
   },
   "claude-3-5-haiku-latest": {
     id: "claude-3-5-haiku-latest",
@@ -128,10 +136,11 @@ export const MODELS: Record<string, AIModelConfig> = {
     functionCalling: true,
     knowledgeCutoff: "July 2024",
     default: true,
+    description: "Fast, efficient Claude (Default Model)",
   },
   "llama3-groq-70b-8192-tool-use-preview": {
     id: "llama3-groq-70b-8192-tool-use-preview",
-    friendlyName: "openMediumToolCalling",
+    friendlyName: "llama",
     maxContextSize: 8192,
     price: {
       input: 0.59 / 1000000,
@@ -142,7 +151,53 @@ export const MODELS: Record<string, AIModelConfig> = {
     functionCalling: true,
     knowledgeCutoff: "Unknown",
     default: false,
+    description: "Llama model via Groq. Fastest one",
   },
+  "Qwen/Qwen2.5-Coder-32B-Instruct": {
+    id: "Qwen/Qwen2.5-Coder-32B-Instruct",
+    friendlyName: "qwen25Coder32",
+    maxContextSize: 120000,
+    price: {
+      input: 0.06 / 1000000,
+      output: 0.18 / 1000000,
+    },
+    priceDesc: "$0.24/1M tokens",
+    supportsVision: false,
+    functionCalling: false,
+    knowledgeCutoff: "October 2023",
+    default: false,
+    description: "Qwen Model from Nebius with default speed",
+  },
+  "Qwen/Qwen2.5-Coder-32B-Instruct-fast": {
+    id: "Qwen/Qwen2.5-Coder-32B-Instruct-fast",
+    friendlyName: "qwen25Coder32Fast",
+    maxContextSize: 120000,
+    price: {
+      input: 0.18 / 1000000,
+      output: 0.3 / 1000000,
+    },
+    priceDesc: "$0.4/1M tokens",
+    supportsVision: false,
+    functionCalling: false,
+    knowledgeCutoff: "October 2023",
+    default: false,
+    description: "Qwen Model from Nebius with faster speed",
+  },
+  // "Qwen/QwQ-32B-Preview": {
+  //   id: "Qwen/QwQ-32B-Preview",
+  //   friendlyName: "qwenQwQ32",
+  //   maxContextSize: 32768,
+  //   price: {
+  //     input: 0.15 / 1000000,
+  //     output: 0.6 / 1000000,
+  //   },
+  //   priceDesc: "$0.3/1M tokens",
+  //   supportsVision: false,
+  //   functionCalling: true,
+  //   knowledgeCutoff: "October 2023",
+  //   default: false,
+  //   description: "Medium-sized reasoning Qwen model",
+  // },
 };
 
 export interface ContextAllocationItem {
@@ -195,4 +250,4 @@ export const WEAK_MODEL_ID = "gpt-4o-mini";
 
 export const INACTIVITY_TIMEOUT = 3 * 60 * 60 * 1000; // 3 hours
 
-export const RECENCY_RANGE = 2 * 24 * 60 * 60 * 1000; // 2 days for now
+export const RECENCY_RANGE = 1 * 24 * 60 * 60 * 1000; // a day for now

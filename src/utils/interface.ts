@@ -14,7 +14,7 @@ export interface ToolCall {
   toolCallId: string;
   output: string;
   timestamp: number;
-  executionTime: number;
+  duration: number;
   conversationId: number;
 }
 

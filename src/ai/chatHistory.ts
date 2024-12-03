@@ -1,10 +1,10 @@
 import { ChatMessage } from "llamaindex";
 import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
-import { Database, getRecentConversationsData } from "../utils/database";
+import { ConversationMetadata, Database, getAllConversationData } from "../utils/database";
 import { ConversationEntry } from "../utils/interface";
 import { debug } from "../utils/logger/Logger";
 
-function constructFormattedChatHistory(sortedMessagesAndToolCalls: any[]): ChatMessage[] {
+function constructFormattedChatHistory(sortedMessagesAndToolCalls: ConversationEntry[]): ChatMessage[] {
   const chatHistory: ChatMessage[] = [];
 
   sortedMessagesAndToolCalls.forEach((current, index) => {
@@ -12,28 +12,33 @@ function constructFormattedChatHistory(sortedMessagesAndToolCalls: any[]): ChatM
       // Regular message
       chatHistory.push({
         role: current.role,
-        content: current.content,
+        content: current.content || "",
       });
-      debug(`Message [${index}] Role: ${current.role}, Content: ${current.content.slice(0, 50)}...`);
-    } else if ("toolCallId" in current) {
+      if (!current.content) {
+        debug("json of current that is message but without content:", JSON.stringify(current));
+      }
+      debug(`Message [${index}] Role: ${current.role}, Content: ${current?.content?.slice(0, 50)}...`);
+    } else if ("toolName" in current && "output" in current) {
       // Tool call and result
       debug(
         `Tool Call [${index}] ID: ${current.toolCallId}, Name: ${current.toolName}, Input: ${JSON.stringify(current.inputParams)}`,
       );
       debug(`Tool Result [${index}] ID: ${current.toolCallId}, Output: ${current.output}`);
 
+      // Format tool call as a message
       const toolCallMessage: ChatMessage = {
         role: "assistant",
-        content: "",
+        content: `**Tool Call**: ${current.toolName}\n**Input**: ${JSON.stringify(current.inputParams)}`,
         options: {
-          toolCall: [{ id: current.toolCallId, name: current.toolName, input: current.inputParams }],
+          toolCall: { id: current.toolCallId, name: current.toolName, input: current.inputParams },
         },
       };
       chatHistory.push(toolCallMessage);
 
+      // Format tool result as a message
       const toolResultMessage: ChatMessage = {
         role: "assistant",
-        content: "",
+        content: `**Tool Result**: ${current.output}`,
         options: {
           toolResult: { id: current.toolCallId, result: current.output, isError: false },
         },
@@ -42,6 +47,9 @@ function constructFormattedChatHistory(sortedMessagesAndToolCalls: any[]): ChatM
     }
   });
 
+  debug("formatted chat history with messages and tool calls");
+  debug(chatHistory);
+
   return chatHistory;
 }
 
@@ -49,24 +57,16 @@ export async function constructChatHistory(
   db: Database,
   conversationId: number,
   contextAllocation: ContextAllocationItem,
+  newConversation: boolean, //
 ): Promise<ChatMessage[]> {
-  const lastConversationsData = getRecentConversationsData(db);
+  let lastConversationsData: { entries: ConversationEntry[]; conversationData: ConversationMetadata };
+
+  lastConversationsData = getAllConversationData(db, conversationId);
+
   const sortedMessagesAndToolCalls = lastConversationsData.entries;
-  const { conversations } = lastConversationsData;
+  // const { conversations } = lastConversationsData;
   debug("sortedMessagesAndToolCalls:", sortedMessagesAndToolCalls.length);
 
-  // Enhanced logging for conversation history
-  sortedMessagesAndToolCalls.forEach((item, index) => {
-    if ("role" in item) {
-      // Log message roles and content
-      debug(
-        `Message [${index}] Role: ${item.role}, Content: ${item.content.slice(0, 50)}${item.content.length > 50 ? "..." : ""}`,
-      );
-    } else if (item.toolCallId) {
-      // Log tool call details
-      debug(`Tool Call [${index}] Name: ${item.toolName}, Input: ${JSON.stringify(item.inputParams)}`);
-    }
-  });
   // todo: check limits in current context window allocation
 
   const fullChatHistory = sortedMessagesAndToolCalls;

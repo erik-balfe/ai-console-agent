@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "path";
-import { MessageRole, RECENCY_RANGE } from "../constants";
+import { RECENCY_RANGE } from "../constants";
 import { getUserHomeDir } from "./getUserHomeDir";
 import { AgentMessage, ConversationEntry, ToolCall } from "./interface";
 import { debug, error } from "./logger/Logger";
@@ -152,10 +152,8 @@ export async function insertMessage(
   duration: number,
   role: string,
 ): Promise<number> {
-  debug(
-    `Inserting message: ${stepNumber} for conversation ${conversationId}, execution time: ${duration}ms`,
-  );
-  const timestamp = Date.now();
+  debug(`Inserting message: ${stepNumber} for conversation ${conversationId}, execution time: ${duration}ms`);
+  const timestamp = Date.now(); // Timestamp generation
   const result = db.run(
     "INSERT INTO messages (conversationId, stepNumber, content, timestamp, duration, role) VALUES (?, ?, ?, ?, ?, ?)",
     [conversationId, stepNumber, content, timestamp, duration, role],
@@ -285,54 +283,79 @@ export function printDatabaseContents(db: Database) {
   }
 }
 
-export interface FullConversationData {
-  messages: AgentMessage[];
-  toolCalls: ToolCall[];
-  conversationData: ConversationMetadata;
-}
-
 export function getAllConversationData(
   db: Database,
   conversationId: number,
 ): {
-  messages: AgentMessage[];
-  toolCalls: ToolCall[];
-  conversationData: ConversationMetadata & { userQuery: string };
+  entries: ConversationEntry[];
+  conversationData: ConversationMetadata;
 } {
   const conversationData = getConversation(db, conversationId);
-
-  const steps = db
-    .query("SELECT content, role, timestamp FROM messages WHERE conversationId = ? ORDER BY timestamp ASC")
-    .all(conversationId) as Array<{ content: string; role: MessageRole; timestamp: number }>;
-
-  const toolCalls = db
-    .query(
-      "SELECT toolName, toolCallId, inputParams, output, timestamp, duration FROM tool_uses WHERE conversationId = ? ORDER BY timestamp ASC",
-    )
-    .all(conversationId) as Array<ToolCall>;
-
-  const messages: AgentMessage[] = steps.map((step) => ({
-    role: step.role,
-    content: step.content,
-    timestamp: step.timestamp,
-    conversationId,
-  }));
 
   if (!conversationData) {
     throw new Error(`Conversation with ID ${conversationId} not found`);
   }
 
-  return { messages, toolCalls, conversationData };
+  // Retrieve all messages and tool calls combined and sorted by timestamp
+  const entries = db
+    .query(
+      `
+      SELECT
+        content AS content,
+        role AS role,
+        NULL AS toolName,
+        NULL AS toolCallId,
+        NULL AS inputParams,
+        NULL AS output,
+        NULL AS duration,
+        timestamp AS timestamp,
+        conversationId AS conversationId
+      FROM messages
+      WHERE conversationId = ?
+      UNION ALL
+      SELECT
+        NULL AS content,
+        NULL AS role,
+        toolName AS toolName,
+        toolCallId AS toolCallId,
+        inputParams AS inputParams,
+        output AS output,
+        duration AS duration,
+        timestamp AS timestamp,
+        conversationId AS conversationId
+      FROM tool_uses
+      WHERE conversationId = ?
+      ORDER BY timestamp ASC
+    `,
+    )
+    .all(conversationId, conversationId) as ConversationEntry[];
+
+  // Log the sorted list to verify the order
+  entries.forEach((entry, index) => {
+    if ("role" in entry) {
+      debug('"role" in entry is true');
+      debug("entry json:", JSON.stringify(entry));
+      debug(
+        `111 Entry ${index + 1}: role=${entry.role}, content=${entry.content?.slice(0, 50)}..., timestamp=${entry.timestamp}`,
+      );
+    } else if ("toolName" in entry) {
+      debug(
+        `222 Entry ${index + 1}: toolName=${entry.toolName}, toolCallId=${entry.toolCallId}, timestamp=${entry.timestamp}`,
+      );
+    }
+  });
+
+  return { entries, conversationData };
 }
 
 export function getLastConversationEntry(db: Database): ConversationEntry | undefined {
   const latestMessage = db
-    .query("SELECT content, role, timestamp FROM messages ORDER BY timestamp DESC LIMIT 1")
+    .query("SELECT content, role, timestamp, conversationId FROM messages ORDER BY timestamp DESC LIMIT 1")
     .get() as ConversationEntry;
 
   const latestToolCall = db
     .query(
-      "SELECT toolName, toolCallId, inputParams, output, timestamp FROM tool_uses ORDER BY timestamp DESC LIMIT 1",
+      "SELECT toolName, toolCallId, inputParams, output, timestamp, conversationId FROM tool_uses ORDER BY timestamp DESC LIMIT 1",
     )
     .get() as ConversationEntry;
 
@@ -348,46 +371,6 @@ export function getLastConversationEntry(db: Database): ConversationEntry | unde
   return latestEntry ? (latestEntry as ConversationEntry) : undefined;
 }
 
-export function getRecentConversationsData(db: Database): {
-  entries: ConversationEntry[];
-  conversations: Conversation[];
-} {
-  const recencyCutoffTime = Date.now() - RECENCY_RANGE;
-  const conversationIds: number[] = db
-    .query("SELECT id FROM conversations WHERE timestamp >= ? ORDER BY timestamp DESC")
-    .all(recencyCutoffTime)
-    .map((convo: { id: number }) => convo.id);
-
-  const conversations: Conversation[] = [];
-  const recentEntries: ConversationEntry[] = conversationIds.flatMap((conversationId) => {
-    const conversationData = getConversation(db, conversationId);
-
-    if (conversationData) {
-      conversations.push(conversationData);
-    }
-
-    const steps = db
-      .query("SELECT content, role, timestamp FROM messages WHERE conversationId = ? ORDER BY timestamp ASC")
-      .all(conversationId) as Array<{ content: string; role: MessageRole; timestamp: number }>;
-
-    const toolCalls = db
-      .query(
-        "SELECT toolName, toolCallId, inputParams, output, timestamp, duration FROM tool_uses WHERE conversationId = ? ORDER BY timestamp ASC",
-      )
-      .all(conversationId) as Array<ToolCall>;
-
-    const messages: AgentMessage[] = steps.map((step) => ({
-      role: step.role,
-      content: step.content,
-      timestamp: step.timestamp,
-      conversationId,
-    }));
-
-    return [...messages, ...toolCalls];
-  });
-
-  return { entries: recentEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)), conversations };
-}
 
 async function migrateDatabase(db: Database): Promise<void> {
   const currentVersionRow = db.query("SELECT version FROM db_version").get() as
@@ -464,6 +447,14 @@ async function migrateDatabase(db: Database): Promise<void> {
   } else {
     debug(`Database version is current: ${currentVersion}`);
   }
+}
+
+export function isAgentMessage(entry: ConversationEntry): entry is AgentMessage {
+  return "role" in entry && "content" in entry;
+}
+
+export function isToolCall(entry: ConversationEntry): entry is ToolCall {
+  return "toolName" in entry && "toolCallId" in entry;
 }
 
 export { Database };

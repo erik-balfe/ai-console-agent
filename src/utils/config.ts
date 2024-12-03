@@ -195,6 +195,8 @@ export function loadConfig(): ConfigWithMetadata {
     console.error("Error loading config:", error);
   }
 
+  console.log("Config loaded successfully", appConfig);
+
   return {
     appConfig,
     userPrefs,

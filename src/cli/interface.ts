@@ -1,6 +1,8 @@
+// ai-console-agent/src/cli/interface.ts (partial)
+
 import { input, password, select, Separator } from "@inquirer/prompts";
 import chalk from "chalk";
-import { AVAILABLE_MODELS } from "../constants";
+import { MODELS } from "../constants";
 import { LogLevel, LogLevelType } from "../utils/logger";
 import { resolveModelId } from "../utils/modelUtils";
 
@@ -39,6 +41,9 @@ export function parseArguments(args: string[]): ParsedArguments {
         break;
       case "--show-keys":
         parsedArgs.showAPIKeys = true;
+        break;
+      case "--new-chat":
+        parsedArgs.newConversation = true;
         break;
       case "--log-to-file":
         parsedArgs.logToFile = true;
@@ -87,29 +92,25 @@ export function printHelp() {
   console.log("  --show-keys                 Display stored API keys in a safe format");
   console.log("  --new-chat                  Start a new chat");
 
-  console.log("\nAvailable Models:");
+  console.log(chalk.yellow("\n# Available Models:"));
 
-  // GPT-4 Models
-  console.log("  GPT-4 Models:");
-  console.log(
-    `    gpt4oMini (${AVAILABLE_MODELS.gpt4oMini})   - Smaller, faster GPT-4 | Price: $0.26/1M tokens`,
-  );
-  console.log(`    gpt4 (${AVAILABLE_MODELS.gpt4})             - Full GPT-4 | Price: $4.38/1M tokens`);
+  const categories = {
+    OpenAI: ["gpt-4o-mini", "gpt-4o"],
+    Anthropic: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"],
+    "USA open weights": ["llama3-groq-70b-8192-tool-use-preview"],
+    "Chinese open weights": ["Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen/QwQ-32B-Preview"],
+  };
 
-  // Claude Models
-  console.log("  Claude Models:");
-  console.log(
-    `    claude35Sonnet (${AVAILABLE_MODELS.claude35Sonnet}) - Best Claude model | Price: $6.00/1M tokens`,
-  );
-  console.log(
-    `    claude35Haiku (${AVAILABLE_MODELS.claude35Haiku})   - Fast, efficient Claude | Price: $2.00/1M tokens (Default Model)`,
-  );
-
-  // Other Models
-  console.log("  Other Models:");
-  console.log(
-    `    llama (${AVAILABLE_MODELS.llama}) - Llama model via Groq. Fastest one | Price: $0.64/1M tokens`,
-  );
+  for (const [category, modelIds] of Object.entries(categories)) {
+    console.log(`  ${category} Models:`);
+    for (const modelId of modelIds) {
+      const model = MODELS[modelId];
+      console.log(
+        `    ${model.friendlyName} (${model.id}) - ${model.description} | Price: ${model.priceDesc}`,
+      );
+    }
+    console.log("");
+  }
 
   // Examples section remains the same as it doesn't reference specific models
   console.log("\nExamples:");

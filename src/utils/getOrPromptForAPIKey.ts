@@ -53,7 +53,7 @@ export async function getOrPromptForAPIKey(modelId: string, options: GetAPIKeyOp
           debug(`Invalid ${provider} API key provided by user`);
           console.error(
             chalk.red(
-              `Invalid API key. It should not be empty and should start with '${API_KEY_PREFIXES[provider]}'.`,
+              `Invalid API key. It should not be empty and should be 32 characters long for DeepInfra or start with '${API_KEY_PREFIXES[provider]}' for other providers.`,
             ),
           );
           retries++;
@@ -92,17 +92,37 @@ export async function getApiKeyForModel(modelId: string): Promise<string> {
 }
 
 function isValidAPIKey(apiKey: string, provider: APIProvider): boolean {
+  if (provider === "DEEPINFRA") {
+    return apiKey.trim() !== "" && apiKey.length === 32;
+  }
   return apiKey.trim() !== "" && apiKey.startsWith(API_KEY_PREFIXES[provider]);
 }
 
 export function getProviderFromModel(modelId: string): APIProvider {
-  let result: APIProvider | undefined = undefined;
+  debug(`Checking model ID: ${modelId}`);
+  const lowerCaseModelId = modelId.toLowerCase();
 
-  if (modelId.startsWith("gpt")) result = "OPENAI";
-  if (modelId.startsWith("llama")) result = "GROQ";
-  if (modelId.startsWith("claude")) result = "ANTHROPIC";
-  if (EMBEDDINGS_MODEL_ID === modelId) result = "OPENAI";
-  if (!result) throw new Error(`Unsupported model ID: ${modelId}`);
-  debug(`Model ID ${modelId} matches a supported API provider, "${result}"`);
-  return result;
+  if (lowerCaseModelId.startsWith("gpt")) {
+    debug(`Matched model ID with OPENAI`);
+    return "OPENAI";
+  }
+  if (lowerCaseModelId.startsWith("llama")) {
+    debug(`Matched model ID with GROQ`);
+    return "GROQ";
+  }
+  if (lowerCaseModelId.startsWith("claude")) {
+    debug(`Matched model ID with ANTHROPIC`);
+    return "ANTHROPIC";
+  }
+  if (lowerCaseModelId.startsWith("qwen")) {
+    debug(`Matched model ID with DEEPINFRA`);
+    return "DEEPINFRA";
+  }
+  if (EMBEDDINGS_MODEL_ID.toLowerCase() === lowerCaseModelId) {
+    debug(`Matched model ID with OPENAI for embeddings`);
+    return "OPENAI";
+  }
+
+  error(`Unsupported model ID: ${lowerCaseModelId}`);
+  throw new Error(`Unsupported model ID: ${lowerCaseModelId}`);
 }

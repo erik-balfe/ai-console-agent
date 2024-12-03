@@ -4,6 +4,7 @@ import path from "path";
 import { displayOptionsAndGetInput } from "../cli/interface";
 import { CONTEXT_ALLOCATION, ContextAllocationItem } from "../constants";
 import { Database } from "../utils/database";
+import { formatAgentCommand, formatCommandOutput } from "../utils/formatting";
 import { debug, error, info } from "../utils/logger/Logger";
 import { runShellCommand } from "../utils/runShellCommand";
 import { createToolMiddleware } from "./toolMiddleware";
@@ -61,6 +62,7 @@ export const executeCommandCallback = async (params: ExecuteCommandParams): Prom
   }
 
   try {
+    console.write(formatAgentCommand(command));
     const result = await runShellCommand(command, {
       timeout: async ? undefined : 60000, // No timeout for async commands
       maxBuffer: 1024 * 1024 * 50,
@@ -88,6 +90,7 @@ export const executeCommandCallback = async (params: ExecuteCommandParams): Prom
       CONTEXT_ALLOCATION.toolOutput,
     );
 
+    console.write(formatCommandOutput(truncatedResult.output));
     const response: CommandResponse = {
       ...result,
       truncated: typeof truncatedResult !== "string",
@@ -124,6 +127,7 @@ Key Features:
 Output Handling:
 - Sync: Returns {stdout, stderr, error}
 - Async: Returns {outputFiles: {combined, stdout, stderr}}
+Tool output is limited. So you will see "[TRUNCATED]" message if output exceeds the limit.
 `,
     parameters: {
       type: "object",
@@ -172,7 +176,7 @@ export function formatShortOutput(longText: string, numLines: number = 2, assume
 function truncateCommandOutput(
   output: string,
   limits: ContextAllocationItem,
-): string | { output: string; truncatedDetails: { lines: number; characters: number } } {
+): { output: string; truncatedDetails?: { lines: number; characters: number } } {
   const { maxChars } = limits;
   const truncationIndicator = "...[TRUNCATED]...";
 
@@ -183,7 +187,7 @@ function truncateCommandOutput(
 
   // Check if truncation is necessary
   if (totalChars <= maxChars) {
-    return output;
+    return { output };
   }
 
   // Calculate available space for start and end parts
