@@ -16,6 +16,7 @@ interface ExecuteCommandParams {
     description?: string;
   };
   async?: boolean;
+  fullOutput? : boolean;
 }
 
 interface CommandResponse {
@@ -44,6 +45,7 @@ export const executeCommandCallback = async (params: ExecuteCommandParams): Prom
     command,
     requireConfirmation: { enabled, description: explanation } = { enabled: false, description: "" },
     async = false,
+    fullOutput = false,
   } = params;
 
   if (enabled) {
@@ -127,7 +129,8 @@ Key Features:
 Output Handling:
 - Sync: Returns {stdout, stderr, error}
 - Async: Returns {outputFiles: {combined, stdout, stderr}}
-Tool output is limited. So you will see "[TRUNCATED]" message if output exceeds the limit.
+Tool output is limited by length. So you will see "[TRUNCATED]" message if output exceeds the limit.
+If youre sure, you want to get full output, use 'full-output' option.
 `,
     parameters: {
       type: "object",
@@ -155,6 +158,12 @@ Tool output is limited. So you will see "[TRUNCATED]" message if output exceeds 
           default: false,
           description:
             "If true, executes command asynchronously and returns file paths for monitoring progress.",
+        },
+        fullOutput: {
+          type: "boolean",
+          default: false,
+          description:
+            "If true, returns full output without truncation, even if it exceeds the limit. Use this option if you are sure you want to get full output.",
         },
       },
       required: ["command"],

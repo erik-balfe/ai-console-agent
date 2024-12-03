@@ -1,8 +1,8 @@
 import { MetadataMode, VectorStoreIndex } from "llamaindex";
 import { ConversationMetadata, Database, getAllConversationData } from "../../utils/database";
+import { debug } from "../../utils/logger/Logger";
 import { strigifyFullConversation } from "../../utils/strigifyFullConversation";
 import { addConversationDocument, initializeVectorStoreIndex } from "./vectorStore";
-import { debug } from "../../utils/logger/Logger";
 
 export async function saveConversationDocument(db: Database, conversationId: number): Promise<void> {
   const document = await createDocumentFromConversation(db, conversationId);
@@ -13,14 +13,13 @@ async function createDocumentFromConversation(
   db: Database,
   conversationId: number,
 ): Promise<{ text: string; metadata: ConversationMetadata }> {
-  const { messages, toolCalls, conversationData } = getAllConversationData(db, conversationId);
-  const stringifiedConversation = strigifyFullConversation(messages, toolCalls, conversationData);
+  const { entries, conversationData } = getAllConversationData(db, conversationId);
+  const stringifiedConversation = strigifyFullConversation(entries, conversationData);
 
-  debug("all conversation messages:\n\n", JSON.stringify(messages, null, 2));
-  debug("all conversation tool Calls:\n\n", JSON.stringify(toolCalls, null, 2));
+  debug("all conversation entries:\n\n", JSON.stringify(entries, null, 2));
   debug("all conversation Data:\n\n", JSON.stringify(conversationData, null, 2));
 
-  const metadata = {
+  const metadata: ConversationMetadata = {
     conversationId,
     userFeedback: conversationData.userFeedback ?? 1,
     correctness: conversationData.correctness ?? 1,
@@ -28,7 +27,6 @@ async function createDocumentFromConversation(
     relevancy: conversationData.relevancy ?? 1,
     retrievalCount: conversationData.retrievalCount ?? 0,
     lastRetrieved: conversationData.lastRetrieved,
-    title: conversationData,
     timestamp: conversationData.timestamp,
   };
 
@@ -75,7 +73,7 @@ export async function getRelevantContext(
 
     return relevantNodes;
   } catch (err) {
-    err("Error retrieving documents from vector store:", err);
+    console.error("Error retrieving documents from vector store:", err);
     return [];
   }
 }

@@ -4,6 +4,7 @@ import { ConversationMetadata, Database, getAllConversationData } from "../utils
 import { ConversationEntry } from "../utils/interface";
 import { debug } from "../utils/logger/Logger";
 
+
 function constructFormattedChatHistory(sortedMessagesAndToolCalls: ConversationEntry[]): ChatMessage[] {
   const chatHistory: ChatMessage[] = [];
 

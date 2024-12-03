@@ -2,7 +2,6 @@ import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "path";
-import { RECENCY_RANGE } from "../constants";
 import { getUserHomeDir } from "./getUserHomeDir";
 import { AgentMessage, ConversationEntry, ToolCall } from "./interface";
 import { debug, error } from "./logger/Logger";
@@ -114,6 +113,7 @@ export interface ConversationScores {
 }
 
 export interface ConversationMetadata extends ConversationScores {
+  conversationId: number;
   timestamp: number;
   retrievalCount: number;
   lastRetrieved: number | null;
@@ -288,7 +288,7 @@ export function getAllConversationData(
   conversationId: number,
 ): {
   entries: ConversationEntry[];
-  conversationData: ConversationMetadata;
+  conversationData: Conversation;
 } {
   const conversationData = getConversation(db, conversationId);
 
@@ -370,7 +370,6 @@ export function getLastConversationEntry(db: Database): ConversationEntry | unde
 
   return latestEntry ? (latestEntry as ConversationEntry) : undefined;
 }
-
 
 async function migrateDatabase(db: Database): Promise<void> {
   const currentVersionRow = db.query("SELECT version FROM db_version").get() as

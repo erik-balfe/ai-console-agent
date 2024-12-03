@@ -1,17 +1,20 @@
 import { AVAILABLE_MODELS } from "../constants";
 
 export interface AgentMessage {
-  role: "user" | "assistant" | "system";
+  id: number;
+  conversationId: number;
+  stepNumber: number;
   content: string;
   timestamp: number;
-  duration?: number;
-  conversationId: number;
+  duration: number;
+  role: string;
 }
 
 export interface ToolCall {
-  toolName: string;
-  inputParams: string;
+  id: number;
   toolCallId: string;
+  toolName: string;
+  inputParams: any;
   output: string;
   timestamp: number;
   duration: number;

@@ -1,9 +1,9 @@
-import chalk from "chalk";
 import { mkdir } from "fs/promises";
 import { dirname, resolve } from "path";
 import pino from "pino";
 import { DEFAULT_MAX_LOG_SIZE, LogLevel, LogLevelType } from "./constants";
 import { LogContext, LoggerConfig } from "./types";
+import chalk from "chalk";
 
 export class Logger {
   private static instance: Logger | null = null;

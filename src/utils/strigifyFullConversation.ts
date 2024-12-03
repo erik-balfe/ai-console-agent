@@ -1,10 +1,9 @@
-import { ConversationMetadata } from "./database";
+import { ConversationMetadata, isAgentMessage, isToolCall } from "./database";
 import { dateToReadableFormat } from "./dateToReadableFormat";
-import { AgentMessage, ToolCall } from "./interface";
+import { ConversationEntry } from "./interface";
 
 export function strigifyFullConversation(
-  messages: AgentMessage[],
-  toolCalls: ToolCall[],
+  entries: ConversationEntry[],
   conversationMetadata: ConversationMetadata & { userQuery: string },
 ): string {
   const result: string[] = [];
@@ -14,42 +13,19 @@ export function strigifyFullConversation(
     `<message role="user" time="${dateToReadableFormat(new Date(conversationMetadata.timestamp))}">${conversationMetadata.userQuery}</message>`,
   );
 
-  let messageIndex = 0;
-  let toolIndex = 0;
-
-  while (messageIndex < messages.length && toolIndex < toolCalls.length) {
-    if (messages[messageIndex].timestamp <= toolCalls[toolIndex].timestamp) {
-      const message = messages[messageIndex];
+  entries.forEach((entry, index) => {
+    if (isAgentMessage(entry)) {
+      // Regular message
       result.push(
-        `<message role="${message.role}" time="${dateToReadableFormat(new Date(message.timestamp))}">${message.content}</message>`,
+        `<message role="${entry.role}" time="${dateToReadableFormat(new Date(entry.timestamp))}">${entry.content}</message>`,
       );
-      messageIndex++;
-    } else {
-      const tool = toolCalls[toolIndex];
+    } else if (isToolCall(entry)) {
+      // Tool call and result
       result.push(
-        `<toolCall name="${tool.toolName}" time="${dateToReadableFormat(new Date(tool.timestamp))}"><input>${tool.inputParams}</input><output>${tool.output}</output></toolCall>`,
+        `<toolCall name="${entry.toolName}" time="${dateToReadableFormat(new Date(entry.timestamp))}"><input>${JSON.stringify(entry.inputParams)}</input><output>${entry.output}</output></toolCall>`,
       );
-      toolIndex++;
     }
-  }
-
-  // Add remaining messages
-  while (messageIndex < messages.length) {
-    const message = messages[messageIndex];
-    result.push(
-      `<message role="${message.role}" time="${dateToReadableFormat(new Date(message.timestamp))}">${message.content}</message>`,
-    );
-    messageIndex++;
-  }
-
-  // Add remaining tool calls
-  while (toolIndex < toolCalls.length) {
-    const tool = toolCalls[toolIndex];
-    result.push(
-      `<toolCall name="${tool.toolName}" time="${dateToReadableFormat(new Date(tool.timestamp))}"><input>${tool.inputParams}</input><output>${tool.output}</output></toolCall>`,
-    );
-    toolIndex++;
-  }
+  });
 
   return `<conversation>${result.join("")}</conversation>`;
 }

@@ -10,7 +10,7 @@
     "build": "bun run build.ts",
     "test": "bun test ",
     "dev": "bun run ./src/index.ts --log-to-file",
-    "install-global": "./build-and-install.sh"
+    "install-local-built": "bun run ./install-local-built.sh"
   },
   "devDependencies": {
     "@types/bun": "latest",
